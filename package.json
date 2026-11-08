@@ -1,0 +1,43 @@
+{
+  "name": "oidevs-eida-control-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "engines": {
+    "node": "^22.13.0 || ^24.3.0 || >=26.0.0"
+  },
+  "scripts": {
+    "start": "expo start --dev-client",
+    "android": "expo run:android",
+    "build:android": "node scripts/build-android.mjs",
+    "prebuild": "expo prebuild --platform android --no-install",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
+    "test": "tsx --test tests/*.test.ts",
+    "check:android": "node scripts/check-android.mjs",
+    "export:android": "expo export --platform android --output-dir .artifacts/android-bundle"
+  },
+  "dependencies": {
+    "expo": "~58.0.23",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.1",
+    "expo-router": "~58.0.30",
+    "expo-constants": "~58.0.15",
+    "expo-linking": "~58.0.16",
+    "expo-splash-screen": "~58.0.13",
+    "expo-status-bar": "~58.0.4",
+    "expo-system-ui": "~58.0.7",
+    "expo-dev-client": "~58.0.18",
+    "react-native-safe-area-context": "~5.11.1",
+    "react-native-screens": "~4.30.1",
+    "react-native-quick-crypto": "1.1.9",
+    "react-native-nitro-modules": "0.37.2",
+    "react-native-quick-base64": "3.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.3.0",
+    "@types/node": "^22.19.0",
+    "typescript": "~6.0.3",
+    "tsx": "^4.20.6"
+  }
+}

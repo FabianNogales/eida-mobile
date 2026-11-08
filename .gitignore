@@ -1,0 +1,16 @@
+node_modules/
+.expo/
+.tools/
+.artifacts/
+android/
+ios/
+dist/
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.pem
+*.key
+*.log
+*.tsbuildinfo
