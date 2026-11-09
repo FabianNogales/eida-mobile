@@ -1,8 +1,9 @@
 import { useCallback, useRef, useState } from 'react'
-import { ActivityIndicator, Alert, Text, View } from 'react-native'
+import { Alert, Text, View } from 'react-native'
 import { Screen } from '../components/Screen'
 import { ActionButton } from '../components/ActionButton'
 import { Notice } from '../components/Notice'
+import { EmptyState, LoadingState } from '../components/FeedbackStates'
 import { contentStyles as s } from '../components/contentStyles'
 import { useAuth } from '../features/auth/AuthProvider'
 import { devices, revokeDevice } from '../features/exams/api'
@@ -29,11 +30,11 @@ export function DevicesScreen() {
     finally { revokeLock.current = false; setRevoking(null) }
   }
   return <Screen>
-    <Text style={s.title}>Mis dispositivos</Text>
+    <Text style={s.body}>Administra las instalaciones registradas para tu cuenta.</Text>
     <ActionButton secondary label="Actualizar" busy={query.loading} disabled={revoking !== null} onPress={query.refresh} />
-    {query.loading && <ActivityIndicator />}
+    {query.loading && <LoadingState label="Consultando dispositivos de la cuenta" />}
     {(error || query.error) && <Notice message={error || query.error!} />}
-    {query.data?.length === 0 && <Notice message="No hay dispositivos registrados en esta consulta." />}
+    {query.data?.length === 0 && <EmptyState title="Sin dispositivos en esta consulta" message="No se recibieron instalaciones registradas para mostrar." />}
     {query.data?.map((device) => <View style={s.card} key={device.id}>
       <Text style={s.subtitle}>{device.device_name}</Text>
       {device.id === session.deviceId && <Text style={s.label}>Esta sesión</Text>}

@@ -24,7 +24,7 @@ const styles = StyleSheet.create({
   field: { gap: theme.spacing.sm }, label: { ...theme.typography.label, color: theme.colors.navy },
   input: { minHeight: theme.layout.controlMinHeight, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md,
     borderRadius: theme.radius.control, borderWidth: 1, borderColor: theme.colors.inputBorder,
-    backgroundColor: theme.colors.surface, color: theme.colors.text, fontSize: 16 },
+    backgroundColor: theme.colors.surface, color: theme.colors.text, ...theme.typography.input },
   multiline: { minHeight: 120, textAlignVertical: 'top' }, invalid: { borderColor: theme.colors.error, borderWidth: 2 },
   hint: { ...theme.typography.body, color: theme.colors.muted }, error: { ...theme.typography.body, color: theme.colors.error },
 })

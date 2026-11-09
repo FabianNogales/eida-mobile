@@ -18,6 +18,7 @@ export const theme = {
     title: { fontSize: 28, lineHeight: 36, fontWeight: '700' },
     subtitle: { fontSize: 18, lineHeight: 26, fontWeight: '700' },
     body: { fontSize: 14, lineHeight: 22, fontWeight: '400' },
+    input: { fontSize: 16, lineHeight: 24, fontWeight: '400' },
     label: { fontSize: 14, lineHeight: 22, fontWeight: '600' },
     caption: { fontSize: 12, lineHeight: 18, fontWeight: '500' },
     button: { fontSize: 16, lineHeight: 24, fontWeight: '700' },

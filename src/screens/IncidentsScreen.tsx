@@ -1,10 +1,17 @@
 import { useCallback, useState } from 'react'
-import { Text, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Screen } from '../components/Screen'
+import { ListScreen } from '../components/ListScreen'
 import { ActionButton } from '../components/ActionButton'
+import { AppText } from '../components/AppText'
+import { Card } from '../components/Card'
+import { EmptyState } from '../components/FeedbackStates'
 import { Notice } from '../components/Notice'
-import { contentStyles as s } from '../components/contentStyles'
+import { StatusBadge } from '../components/StatusBadge'
+import { QueryFeedback } from '../components/general/QueryFeedback'
+import { OnlineAccessState } from '../components/operations/OnlineAccessState'
+import { theme } from '../config/theme'
 import { useRemoteQuery } from '../hooks/useRemoteQuery'
 import { useDiscipline } from '../features/incidents/useDiscipline'
 import { incidentTypes, statusLabels } from '../features/incidents/contracts'
@@ -16,41 +23,57 @@ export function IncidentsScreen() {
   const permission = context.data
   const load = useCallback(async (signal: AbortSignal) => permission?.read && api ? api.incidents(examId, page, signal) : null, [api, permission, examId, page])
   const query = useRemoteQuery(load)
-  return <Screen><Text style={s.title}>Incidencias del examen</Text>
-    <Notice message="Consulta online. Una incidencia es un reporte; no implica una infracción confirmada. Los permisos se comprueban por examen en Laravel." />
-    {(context.error || query.error) && <Notice message={context.error ?? query.error ?? ''} />}
-    {!permission && <Text style={s.body}>La consulta requiere conexión y que la política central del token móvil habilite estos endpoints.</Text>}
-    <ActionButton secondary label="Actualizar autorización y reportes" onPress={() => { context.refresh(); query.refresh() }} />
-    {permission?.manage && <>
-      <ActionButton label="Infracciones · docente responsable" onPress={() => router.push({ pathname: '/(private)/infractions', params: { examId } })} />
-      <ActionButton secondary label="Expulsiones y anulación · online" onPress={() => router.push({ pathname: '/(private)/discipline-actions', params: { examId } })} />
-    </>}
-    {permission?.report && <Text style={s.body}>Para reportar offline, abre tu paquete descargado y vigente desde Paquetes protegidos.</Text>}
-    <ActionButton secondary label="Paquetes y reportes locales cifrados" onPress={() => router.push('/offline')} />
-    {permission?.read && query.data?.data.map((incident) => <View key={incident.id} style={s.card}>
-      <Text style={s.subtitle}>{incidentTypes.find((type) => type.value === incident.type)?.label}</Text>
-      <Text style={s.body}>{incident.student ? `${incident.student.last_names}, ${incident.student.first_names}` : 'Incidencia general'}</Text>
-      <Text style={s.label}>{statusLabels[incident.status] ?? 'Estado pendiente de interpretación'}</Text>
-      <Text style={s.body}>{laPazInstant(incident.reportedAt)}</Text>
-      <ActionButton secondary label="Detalle de incidencia" onPress={() => router.push({ pathname: '/(private)/incident', params: { examId, incidentId: incident.id } })} />
-    </View>)}
-    {query.data && <><ActionButton secondary label="Página anterior" disabled={page <= 1} onPress={() => setPage(page - 1)} />
-      <ActionButton secondary label="Página siguiente" disabled={page >= query.data.lastPage} onPress={() => setPage(page + 1)} /></>}
-  </Screen>
+  const allowed = permission?.read && String(permission.examId) === examId
+  return <ListScreen data={allowed ? query.data?.data.filter((item) => String(item.examId) === examId) ?? [] : []}
+    keyExtractor={(item) => item.id} ListHeaderComponent={<View style={s.section}>
+      <AppText variant="subtitle" accessibilityRole="header">Reportes del examen</AppText>
+      <Notice tone="info" message="Consulta oficial online. Un reporte no implica una infracción confirmada ni una sanción." />
+      {!allowed ? <OnlineAccessState loading={context.loading} error={context.error}
+        message="El servidor no autoriza consultar incidencias de este examen con esta cuenta." retry={context.refresh} /> : <>
+        <ActionButton secondary label="Actualizar autorización y reportes" busy={context.loading || query.loading} onPress={() => { context.refresh(); query.refresh() }} />
+        <QueryFeedback loading={query.loading} error={query.error} label="Consultando reportes oficiales" retry={query.refresh} />
+        {permission?.manage && <>
+          <ActionButton label="Infracciones · docente autorizado" onPress={() => router.push({ pathname: '/(private)/infractions', params: { examId } })} />
+          <ActionButton secondary label="Expulsiones y anulación · solo online" onPress={() => router.push({ pathname: '/(private)/discipline-actions', params: { examId } })} />
+        </>}
+        {permission?.report && <AppText>Para un reporte offline, abre tu paquete vigente y selecciona Registrar incidencia.</AppText>}
+      </>}
+      <ActionButton secondary label="Paquetes y reportes locales cifrados" onPress={() => router.push('/offline')} />
+    </View>}
+    renderItem={({ item }) => <Card>
+      <StatusBadge label={statusLabels[item.status] ?? item.status} />
+      <AppText variant="subtitle" accessibilityRole="header">{incidentTypes.find((type) => type.value === item.type)?.label}</AppText>
+      <AppText>{item.student ? `${item.student.last_names}, ${item.student.first_names}` : 'Incidencia general'}</AppText>
+      <AppText>{laPazInstant(item.reportedAt)}</AppText>
+      <ActionButton secondary label="Detalle del reporte" onPress={() => router.push({ pathname: '/(private)/incident', params: { examId, incidentId: item.id } })} />
+    </Card>}
+    ListEmptyComponent={allowed && query.data && !query.loading && !query.error ? <EmptyState title="Sin reportes en esta página" message="No se agregan incidencias de demostración." /> : undefined}
+    ListFooterComponent={allowed && query.data ? <View style={s.section}>
+      <AppText>Página {query.data.page} de {query.data.lastPage}</AppText>
+      <ActionButton secondary label="Página anterior" disabled={page <= 1 || query.loading} onPress={() => setPage(page - 1)} />
+      <ActionButton secondary label="Página siguiente" disabled={page >= query.data.lastPage || query.loading} onPress={() => setPage(page + 1)} />
+    </View> : undefined} />
 }
 export function IncidentDetailScreen() {
   const { examId = '', incidentId = '' } = useLocalSearchParams<{ examId: string; incidentId: string }>(), { api, context } = useDiscipline(examId)
   const load = useCallback(async (signal: AbortSignal) => context.data?.read && api ? api.incident(examId, incidentId, signal) : null, [api, context.data, examId, incidentId])
-  const query = useRemoteQuery(load), incident = context.data?.read ? query.data : null
-  return <Screen><Text style={s.title}>Detalle de incidencia</Text>
-    {(context.error || query.error) && <Notice message={context.error ?? query.error ?? ''} />}
-    {incident && <>
-      <Text style={s.subtitle}>{incidentTypes.find((type) => type.value === incident.type)?.label}</Text>
-      <Text style={s.body}>{incident.description}</Text>
-      <Text style={s.body}>{incident.student ? `${incident.student.last_names}, ${incident.student.first_names} · SIS ${incident.student.sis_code}` : 'Sin estudiante relacionado'}</Text>
-      <Text style={s.body}>Reportó: {incident.reporter ?? 'No informado'} · {laPazInstant(incident.reportedAt)}</Text>
-      <Notice message={`Estado del reporte: ${statusLabels[incident.status] ?? 'Estado pendiente de interpretación'}. No supone una decisión disciplinaria.`} />
+  const query = useRemoteQuery(load)
+  const allowed = context.data?.read && String(context.data.examId) === examId
+  const incident = allowed && query.data && String(query.data.examId) === examId && query.data.id === incidentId ? query.data : null
+  return <Screen>
+    {!allowed ? <OnlineAccessState loading={context.loading} error={context.error}
+      message="No tienes autorización actual para consultar este reporte." retry={context.refresh} /> : <>
+      <QueryFeedback loading={query.loading} error={query.error} label="Consultando detalle oficial" retry={query.refresh} />
+      {incident && <Card>
+        <StatusBadge label={statusLabels[incident.status] ?? incident.status} />
+        <AppText variant="subtitle" accessibilityRole="header">{incidentTypes.find((type) => type.value === incident.type)?.label}</AppText>
+        <AppText>{incident.description}</AppText>
+        <AppText>{incident.student ? `${incident.student.last_names}, ${incident.student.first_names} · SIS ${incident.student.sis_code}` : 'Sin estudiante relacionado'}</AppText>
+        <AppText>Reportó: {incident.reporter ?? 'No informado'} · {laPazInstant(incident.reportedAt)}</AppText>
+        <Notice tone="info" message="Estado de un reporte oficial. No supone una decisión disciplinaria." />
+      </Card>}
+      <ActionButton secondary label="Actualizar detalle y autorización" onPress={() => { context.refresh(); query.refresh() }} />
     </>}
-    <ActionButton secondary label="Actualizar online" onPress={() => { context.refresh(); query.refresh() }} />
   </Screen>
 }
+const s = StyleSheet.create({ section: { gap: theme.spacing.md } })

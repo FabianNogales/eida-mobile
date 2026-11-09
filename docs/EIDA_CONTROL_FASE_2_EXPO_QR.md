@@ -341,3 +341,19 @@ La integración fuente de cámara se describe en [Fase 6: cámara QR](EIDA_CONTR
 ## Referencia posterior: fase 8, bloque A
 
 [Fase 8, bloque A](EIDA_CONTROL_FASE_8_IMPLEMENTACION_FIGMA.md) incorpora tema, componentes, Safe Area, teclado y cuatro pestañas reales. Las capturas aportadas se utilizan como referencia flexible; Pendientes enlaza las colas existentes sin combinar sus operaciones. No se modificaron servicios, verificador, cámara ni pantallas previas de los bloques B/C/D. Logo SVG/Poppins y comprobación física siguen pendientes. Se escribieron pruebas sin ejecutarlas; no se instalaron dependencias ni se hicieron compilaciones, operaciones Git o cambios del entorno.
+
+## Referencia posterior: fase 8, bloque B
+
+El usuario confirmó typecheck y todas las pruebas de A con Node.js 22. [Fase 8, bloque B](EIDA_CONTROL_FASE_8_IMPLEMENTACION_FIGMA.md) rediseña Login, Inicio, Exámenes y Perfil utilizando servicios y navegación existentes. Se conservó el SVG oficial como recurso; su renderizado y Poppins quedan pendientes de soporte/archivos compatibles, con texto y fuente del sistema como alternativa. Los diez casos nuevos de B no fueron ejecutados por el asistente. No se modificaron servicios, verificador, cámara, Android ni entorno; C/D siguen pendientes.
+
+## Referencia posterior: fase 8, bloque C
+
+[Fase 8, bloque C](EIDA_CONTROL_FASE_8_IMPLEMENTACION_FIGMA.md) rediseña el centro del examen/distribución HU35, los paquetes HU36, la lista virtualizada y la ficha modal del estudiante. Mantiene SQL, servicios, vigencia, fotos protegidas, registro provisional y verificador intactos. Extiende únicamente el foco de teclado de ListScreen como componente compartido. Se escribieron trece casos sin ejecutarlos; no se atribuye a B/C el resultado anterior de A. D continúa pendiente. No se ejecutaron pruebas, instalaciones, Git, compilaciones ni cambios nativos o del entorno.
+
+## Referencia posterior: fase 8, bloque D
+
+[Fase 8, bloque D](EIDA_CONTROL_FASE_8_IMPLEMENTACION_FIGMA.md) rediseña la presentación del escáner/confirmación, ambas colas, incidencias e interfaces disciplinarias. Conserva adaptador de cámara, verificador, servicios, UUID, contratos, SQLCipher e idempotencia. Integra avisos mínimos en la ficha C y la certeza del contador de pestañas. Se escribieron catorce casos sin ejecutarlos. La validación Android, la política móvil del backend y los hallazgos de formularios descritos en el informe siguen pendientes. No se ejecutaron instalaciones, pruebas, compilaciones, Git o cambios de entorno y no se generó APK.
+
+## Referencia posterior: cierre visual de fase 8
+
+El [cierre visual](EIDA_CONTROL_FASE_8_IMPLEMENTACION_FIGMA.md) integra un PNG transparente derivado de los 25 paths del SVG oficial, en login y cabeceras, sin dependencias nuevas. Poppins sigue pendiente de archivos/licencia y expo-font; continúa la fuente del sistema. Se hicieron ajustes visuales puntuales y se acotó la inicialización de estado UI de Infracciones para no vaciar campos ni restablecer submitted durante una revalidación temporal. La pérdida de sesión sigue retirando la ruta privada. Siete casos nuevos escritos, sin ejecutar; no se modificaron servicios, verificador, Android, backend o frontend, ni se generó APK.

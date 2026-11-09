@@ -7,12 +7,14 @@ import { mainTabs, selectTab } from '../navigation/mainTabs'
 import { pendingSummary } from '../ui/pendingSummary'
 import { AppText } from './AppText'
 import { MainTabIcon } from './MainTabIcon'
+import { useQueueReadiness } from '../ui/useQueueReadiness'
 
 export function MainTabBar({ state, emitter, navigateToTab, insets }: BottomTabBarProps) {
   const onHeightChange = useContext(BottomTabBarHeightCallbackContext)
   const [keyboardVisible, setKeyboardVisible] = useState(() => Keyboard.isVisible())
-  const { runtime, syncItems, incidentItems } = useOffline()
-  const summary = pendingSummary(runtime !== null, syncItems, incidentItems)
+  const { runtime, syncItems, incidentItems, busy } = useOffline()
+  const known = useQueueReadiness(runtime, busy)
+  const summary = pendingSummary(known, syncItems, incidentItems)
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true))
     const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false))
@@ -32,7 +34,7 @@ export function MainTabBar({ state, emitter, navigateToTab, insets }: BottomTabB
         const attention = tab.name === 'pending' && summary ? summary.attention : 0
         const label = `${tab.label}${tab.name === 'pending' ? summary
           ? `, ${count} por enviar, ${attention} conflictos o rechazos`
-          : ', desbloquea el almacén para consultar las colas' : ''}`
+          : ', cantidades todavía no consultadas' : ''}`
         return <Pressable key={route.key} accessibilityRole="tab" accessibilityState={{ selected }}
           accessibilityLabel={label} testID={`main-tab-${tab.name}`}
           onPress={() => selectTab(route.key, selected,

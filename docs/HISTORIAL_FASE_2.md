@@ -142,3 +142,19 @@ Se escribió la integración de incidencias y acciones disciplinarias descrita e
 ## Referencia posterior: fase 8, bloque A (solo código)
 
 Se desarrolló la base compartida de presentación y navegación descrita en [Fase 8, bloque A](EIDA_CONTROL_FASE_8_IMPLEMENTACION_FIGMA.md). La actualización con capturas flexibles incorpora Inicio, Exámenes, Pendientes y Perfil mediante Expo Router; agrega únicamente un resumen de navegación hacia las dos colas existentes. No se tocaron las fuentes QR/cámara, servicios ni pantallas previas de los otros bloques. La integración visual de logo/Poppins y las comprobaciones Android siguen pendientes. No se ejecutaron pruebas, instalaciones, compilaciones, Git o modificaciones del sistema; los resultados históricos previos no se atribuyen a estas pruebas nuevas.
+
+## Referencia posterior: fase 8, bloque B (solo código)
+
+El usuario informó que typecheck y todas las pruebas de A pasan con Node.js 22; ese resultado no se atribuye a B. Se rediseñaron únicamente Login, Inicio, Exámenes y Perfil, como documenta [Fase 8](EIDA_CONTROL_FASE_8_IMPLEMENTACION_FIGMA.md). Se escribieron diez casos sin ejecutarlos. Se copió sin alterar el SVG oficial; su visualización y Poppins requieren recursos/soporte compatibles y no se instalaron dependencias. No se modificaron servicios, QR/cámara, Android, backend, frontend ni entorno. No se ejecutaron pruebas, compilaciones, Git o instalaciones y no se comenzaron C/D.
+
+## Referencia posterior: fase 8, bloque C (solo código)
+
+Se implementó el rediseño de centro de examen/HU35, preparación HU36 y lista/ficha de estudiante descrito en [Fase 8](EIDA_CONTROL_FASE_8_IMPLEMENTACION_FIGMA.md). Se conserva el historial: solo A tiene una confirmación explícita de pruebas del usuario en esta conversación; los trece casos de C no fueron ejecutados por el asistente. Se preservaron servicios, contratos, SQLCipher, QR, cámara, outbox y sincronización; ListScreen recibió una extensión compatible para foco/teclado. No se modificaron Android, Windows, backend o frontend y no se ejecutaron instalaciones, pruebas, compilaciones o Git. El Bloque D sigue pendiente.
+
+## Referencia posterior: fase 8, bloque D (solo código)
+
+Se implementó la presentación de QR/confirmación, Pendientes, sincronización, incidencias, infracciones y disciplina descrita en [Fase 8](EIDA_CONTROL_FASE_8_IMPLEMENTACION_FIGMA.md). Se escribieron catorce casos sin ejecutarlos; la confirmación previa de A no se atribuye a B/C/D. Se conservan los servicios y reglas de las fases anteriores. Los únicos ajustes de integración A/C son certeza del contador y mensajes de registro manual/local. Los hallazgos de revalidación/formularios y habilitación móvil se documentaron fuera del rediseño, sin cambiar backend o guardas. No se ejecutaron instalaciones, pruebas, Git, compilaciones, despliegues o cambios nativos/del sistema; no se generó APK ni se inició otro rediseño.
+
+## Referencia posterior: cierre visual e identidad de fase 8
+
+Se integró la marca oficial mediante PNG transparente renderizado fielmente del SVG local, usando capacidades gráficas existentes y escribiendo solo el recurso en assets/brand. No se descargaron o instalaron herramientas. Se mantuvo la fuente del sistema porque faltan recursos locales de Poppins y expo-font. Los ajustes de formulario son de memoria/interfaz: preservan campos y barrera de envío durante revalidaciones de la misma autorización, sin cambiar los servicios ni conservar datos accesibles tras denegación. Se escribieron siete casos sin ejecutarlos y se documentaron los pendientes Android en [Fase 8](EIDA_CONTROL_FASE_8_IMPLEMENTACION_FIGMA.md). No se ejecutaron instalaciones, pruebas, typecheck, Expo, Git, compilaciones o cambios de entorno/nativos. No se generó APK; los resultados históricos anteriores no se atribuyen a este cierre.
