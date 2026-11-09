@@ -6,10 +6,14 @@ import { OfflineApi } from './api'
 import { PackageDownloader } from './download'
 import { nativeClock } from './clock'
 import { sameBinding, type PackageRecord, type PreparationState } from './contracts'
+import { OfflineSyncController } from './sync/controller'
+import { SyncApi } from './sync/api'
+import type { SyncItem, SyncProgress } from './sync/contracts'
 
 interface OfflineContext {
   runtime: VaultRuntime | null; packages: PackageRecord[]; pending: number; busy: boolean; error: string | null
   preparation: PreparationState
+  syncItems: SyncItem[]; syncProgress: SyncProgress; synchronize(): Promise<void>
   unlock(): Promise<void>; lock(): Promise<void>; refresh(): Promise<void>; download(examId: string, resumeId?: string): Promise<void>
 }
 const Context = createContext<OfflineContext | null>(null)
@@ -22,19 +26,26 @@ export function OfflineProvider({ children }: PropsWithChildren) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [preparation, setPreparation] = useState<PreparationState>('NO_DESCARGADO')
+  const [syncItems, setSyncItems] = useState<SyncItem[]>([])
+  const [syncProgress, setSyncProgress] = useState<SyncProgress>({ running: false, total: 0, processed: 0, batches: 0, message: null })
   const work = useRef(false)
-  const clearView = useCallback(() => { setRuntime(null); setPackages([]); setPending(0) }, [])
+  const clearView = useCallback(() => {
+    setRuntime(null); setPackages([]); setPending(0); setSyncItems([])
+    setSyncProgress({ running: false, total: 0, processed: 0, batches: 0, message: null })
+  }, [])
   const lock = useCallback(async () => { clearView(); await vault.lock() }, [vault, clearView])
   const refresh = useCallback(async () => {
     const r = vault.runtime
     if (!r) { clearView(); return }
     const sample = await nativeClock.sample()
+    await r.outbox.reconcile()
     const records = await r.repo.list()
     for (const p of records) if (p.active && p.state === 'PREPARADO') {
       try { await r.repo.usable(p.id, sample) } catch { /* expired state persisted; boot mismatch remains locked by usable */ }
     }
     const current = await r.repo.list(), count = await r.repo.pendingCount()
-    r.check(); setPackages(current); setPending(count)
+    const items = await r.outbox.items()
+    r.check(); setPackages(current); setPending(count); setSyncItems(items)
   }, [vault, clearView])
   useEffect(() => controller?.onSecurityBoundary(async (reason) => {
     clearView(); await vault.closeAccess(reason)
@@ -73,6 +84,20 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       await refresh().catch(() => {})
     } finally { work.current = false; setBusy(false) }
   }
-  return <Context.Provider value={{ runtime, packages, pending, busy, error, preparation, unlock, lock, refresh, download }}>{children}</Context.Provider>
+  const synchronize = async () => {
+    if (work.current) return
+    const r = vault.runtime
+    if (!r || !controller?.offlineBinding()) { setError('Desbloquea la cola y valida con internet la cuenta original.'); return }
+    work.current = true; setBusy(true); setError(null)
+    try {
+      await new OfflineSyncController(r.outbox, new SyncApi(controller), r.uuid, () => controller.offlineBinding()).sync((progress) => {
+        // A late response cannot repopulate a view locked by logout/account switch.
+        if (vault.runtime === r) { setSyncProgress(progress); void refresh().catch(() => {}) }
+      })
+      await refresh()
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se confirmó la sincronización. Los eventos se conservaron.'); await refresh().catch(() => {}) }
+    finally { work.current = false; setBusy(false) }
+  }
+  return <Context.Provider value={{ runtime, packages, pending, busy, error, preparation, syncItems, syncProgress, synchronize, unlock, lock, refresh, download }}>{children}</Context.Provider>
 }
 export function useOffline() { const value = useContext(Context); if (!value) throw new Error('OfflineProvider no está disponible.'); return value }

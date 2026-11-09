@@ -12,7 +12,7 @@
     "build:android": "node scripts/build-android.mjs",
     "prebuild": "expo prebuild --platform android --no-install",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
-    "test": "tsx --test tests/*.test.ts",
+    "test": "node scripts/run-tests.mjs",
     "check:android": "node scripts/check-android.mjs",
     "export:android": "expo export --platform android --output-dir .artifacts/android-bundle"
   },

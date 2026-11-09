@@ -1,5 +1,6 @@
 import { anchoredNow } from './clock'
 import { parseEnvelope } from './manifest'
+import { OUTBOX_SCHEMA } from './sync/storageSchema'
 import { assertBinding, sameBinding, type ClockSample, type Digest, type Envelope, type Manifest, type OfflineBinding,
   type OfflineStudent, type PackageRecord, type PreparationState, type ProvisionalEvent, type TimeAnchor } from './contracts'
 
@@ -21,7 +22,7 @@ export async function initializeCipher(db: SqlPort, key: string) {
   if (!/^[a-f0-9]{64}$/.test(key)) throw new ProtectedStorageError('Clave local no válida. Se conservaron los datos pendientes.')
   await db.execAsync(`PRAGMA key = "x'${key}'"; PRAGMA temp_store=MEMORY; PRAGMA foreign_keys=ON; PRAGMA secure_delete=ON;`)
   const version = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version')
-  if (version && version.user_version > 1) throw new ProtectedStorageError('La base offline requiere una versión más reciente de EIDA Control.')
+  if (version && version.user_version > 2) throw new ProtectedStorageError('La base offline requiere una versión más reciente de EIDA Control.')
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS packages (
       id TEXT PRIMARY KEY, exam_id TEXT NOT NULL, binding TEXT NOT NULL, state TEXT NOT NULL, envelope TEXT NOT NULL,
@@ -45,7 +46,8 @@ export async function initializeCipher(db: SqlPort, key: string) {
     );
     CREATE TRIGGER IF NOT EXISTS immutable_event_update BEFORE UPDATE ON events BEGIN SELECT RAISE(ABORT, 'IMMUTABLE_EVENT'); END;
     CREATE TRIGGER IF NOT EXISTS immutable_event_delete BEFORE DELETE ON events BEGIN SELECT RAISE(ABORT, 'PENDING_EVENT'); END;
-    PRAGMA user_version=1;
+    ${OUTBOX_SCHEMA}
+    PRAGMA user_version=2;
   `)
   await db.runAsync('UPDATE packages SET state=?,error=? WHERE state=? AND active=0',
     'INCOMPLETA', 'La aplicación se cerró durante la preparación. Puedes reanudar con internet.', 'DESCARGANDO')
@@ -138,9 +140,10 @@ export class OfflineRepository {
   }
   async search(packageId: string, term: string, offset = 0): Promise<OfflineStudent[]> {
     this.check()
-    const escaped = searchKey(term).replace(/[\\%_]/g, '\\$&')
+    // Escape LIKE metacharacters and the escape itself in a single pass.
+    const escaped = searchKey(term).replace(/[!%_]/g, '!$&')
     const rows = await this.db.getAllAsync<{ payload: string }>(
-      "SELECT payload FROM students WHERE package_id=? AND search LIKE ? ESCAPE '\' ORDER BY last_names,first_names,student_id LIMIT 50 OFFSET ?",
+      "SELECT payload FROM students WHERE package_id=? AND search LIKE ? ESCAPE '!' ORDER BY last_names,first_names,student_id LIMIT 50 OFFSET ?",
       packageId, `%${escaped}%`, Math.max(0, offset))
     this.check(); return rows.map((r) => JSON.parse(r.payload) as OfflineStudent)
   }
@@ -165,5 +168,9 @@ export class OfflineRepository {
     await this.db.runAsync('INSERT INTO events(event_id,exam_id,student_id,package_id,payload) VALUES(?,?,?,?,?)',
       event.event_id, event.exam_id, event.student_id, event.package_id, JSON.stringify(event))
   }
-  async pendingCount() { this.check(); return (await this.db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM events'))?.n ?? 0 }
+  async pendingCount() {
+    this.check()
+    return (await this.db.getFirstAsync<{ n: number }>(`SELECT COUNT(*) AS n FROM events e LEFT JOIN sync_outbox o ON o.event_id=e.event_id
+      WHERE o.event_id IS NULL OR o.state IN ('PENDING','SENDING')`))?.n ?? 0
+  }
 }

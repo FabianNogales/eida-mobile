@@ -6,6 +6,14 @@ export const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-
 export const hashPattern = /^[a-f0-9]{64}$/
 const fail = (): never => { throw new Error('El contrato del paquete offline no es válido o está incompleto.') }
 const requiredText = (value: unknown): string => { const s = text(value); return s.trim() ? s : fail() }
+function parsePhotoKind(value: unknown): Photo['kind'] {
+  if (value === 'profile' || value === 'historical') return value
+  return fail()
+}
+function parseEntryStatus(value: unknown): OfflineStudent['entry_status'] {
+  if (value === 'PENDING' || value === 'REGISTERED') return value
+  return fail()
+}
 export function id(v: unknown): string { return validIdentifier(v) ? v : fail() }
 export function uuid(v: unknown): string { return typeof v === 'string' && uuidPattern.test(v) ? v : fail() }
 export function timestamp(v: unknown): string {
@@ -46,21 +54,20 @@ export function parseManifest(value: unknown): Manifest {
   const students = array(r.students, (value): OfflineStudent => {
     const s = object(value), studentId = id(s.student_id)
     const photos = array(s.photos, (value): Photo => {
-      const p = object(value)
-      if (p.kind !== 'profile' && p.kind !== 'historical') fail()
-      if (p.state === 'ABSENT') return { kind: p.kind, state: 'ABSENT' }
+      const p = object(value), kind = parsePhotoKind(p.kind)
+      if (p.state === 'ABSENT') return { kind, state: 'ABSENT' }
       if (p.state !== 'PRESENT') fail()
-      const expected = `exams/${examId}/offline/packages/${packageId}/photos/${studentId}/${p.kind}`
+      const expected = `exams/${examId}/offline/packages/${packageId}/photos/${studentId}/${kind}`
       const size = integer(p.size), mime = text(p.mime), sha256 = text(p.sha256)
       if (text(p.path) !== expected || size > 5242880 || !['image/jpeg', 'image/png', 'image/webp'].includes(mime) || !hashPattern.test(sha256)) fail()
-      return { kind: p.kind, state: 'PRESENT', size, mime, sha256, revision: text(p.revision), path: expected }
+      return { kind, state: 'PRESENT', size, mime, sha256, revision: text(p.revision), path: expected }
     })
     if (photos.length !== 2 || new Set(photos.map((p) => p.kind)).size !== 2) fail()
-    if (s.entry_status !== 'PENDING' && s.entry_status !== 'REGISTERED') fail()
+    const entryStatus = parseEntryStatus(s.entry_status)
     return { student_id: studentId, first_names: requiredText(s.first_names), last_names: requiredText(s.last_names), sis_code: requiredText(s.sis_code),
       identity_number: requiredText(s.identity_number), student_status: text(s.student_status), enrollment_status: nullableText(s.enrollment_status),
       eligibility_status: nullableText(s.eligibility_status), eligibility_revision: s.eligibility_revision === null ? null : integer(s.eligibility_revision, 0),
-      entry_status: s.entry_status, photos }
+      entry_status: entryStatus, photos }
   })
   if (students.length > 50000 || new Set(students.map((s) => s.student_id)).size !== students.length) fail()
   const keys = array(q.keys, (value) => {

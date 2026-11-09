@@ -91,10 +91,33 @@ test('photo HTTP download checks exact byte count and digest', async () => {
 test('local search finds names with accents, SIS and CI; wildcard characters remain literal', async (t) => {
   const h = await harnessOffline(); t.after(() => h.db.closeAsync())
   const m = manifest(); await new PackageDownloader(mockApi(m), h.repo, clock, keys).run('42')
-  for (const word of ['alvarez', 'ANA', '203000101', 'CI-101']) assert.equal((await h.repo.search(packageId, word))[0]?.student_id, '101')
-  assert.equal((await h.repo.search(packageId, '%')).length, 0)
+  for (const word of ['alvarez', 'ÁLVAREZ', 'ANA', 'ána', '203000101', 'CI-101']) assert.equal((await h.repo.search(packageId, word))[0]?.student_id, '101')
+  for (const literal of ['%', '_', '!', 'ana%', 'ana_', 'ana!', '!%', '!_']) {
+    assert.equal((await h.repo.search(packageId, literal)).length, 0, `No literal match expected for ${literal}`)
+  }
   assert.equal((await h.repo.search(packageId, "' OR 1=1 --")).length, 0)
   await assert.rejects(h.repo.student(packageId, '999'), /fuera/)
+})
+
+test('local SQLite search matches literal percent, underscore and bang without broadening results', async (t) => {
+  const h = await harnessOffline(); t.after(() => h.db.closeAsync())
+  const m = manifest(), base = m.students[0]
+  assert.ok(base)
+  // Synthetic snapshot only: real staging and real SQLite queries, without changing shared fixtures.
+  m.students = [
+    { ...base, student_id: '101', first_names: 'Ana%_!Clara', last_names: 'Álvarez', sis_code: 'SIS!%101', identity_number: 'CI!_101' },
+    { ...base, student_id: '102', first_names: 'AnaXYZClara', last_names: 'Prueba', sis_code: 'SISXYZ101', identity_number: 'CIXYZ101' },
+  ]
+  await new PackageDownloader(mockApi(m), h.repo, clock, keys).run('42')
+  assert.equal((await h.repo.search(packageId, '')).length, 2)
+  for (const literal of ['%', '_', '!', '%_!', '!%', '!_', 'Ana%', 'ANA%_!CLARA', 'ÁLVAREZ', 'SIS!%101', 'CI!_101']) {
+    const matches = await h.repo.search(packageId, literal)
+    assert.deepEqual(matches.map((student) => student.student_id), ['101'], `Expected only the literal match for ${literal}`)
+  }
+  // If '_' expanded as a wildcard, this would incorrectly match both names.
+  for (const literal of ['Ana_', '%XYZ', '_XYZ', '!!', 'SIS!_101']) {
+    assert.equal((await h.repo.search(packageId, literal)).length, 0, `Wildcard expansion must not match ${literal}`)
+  }
 })
 test('new repository instance restores packages and stable pending events without network', async (t) => {
   const h = await harnessOffline(); t.after(() => h.db.closeAsync())

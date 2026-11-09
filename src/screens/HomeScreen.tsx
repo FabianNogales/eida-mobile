@@ -25,6 +25,6 @@ export function HomeScreen() {
     <ActionButton secondary label="Mis dispositivos" onPress={() => router.push('/(private)/devices')} />
     <ActionButton secondary label="Diagnóstico QR v3 · desarrollo" onPress={() => router.push('/qr-diagnostics')} />
     <ActionButton secondary label="Cerrar sesión" busy={session.busy} onPress={() => { void controller?.logout() }} />
-    <Text style={s.body}>Los registros offline quedan pendientes de sincronización. Su confirmación oficial requiere una respuesta del servidor en HU37.</Text>
+    <Text style={s.body}>Sincroniza los pendientes desde Paquetes offline. Solo un recibo ACCEPTED de Laravel confirma un nuevo ingreso oficial.</Text>
   </Screen>
 }

@@ -404,6 +404,57 @@ Comparación de lectura SHA-256 antes/después en archivos protegidos relevantes
 
 También coinciden con sus referencias previas el proveedor/codec/contratos QR, los dos fixtures públicos y `tests/qr-v3.test.ts`. Esto acredita conservación de esos archivos; no sustituye ejecutar pruebas.
 
+## Corrección posterior: descubrimiento de pruebas Windows y parser TypeScript
+
+Esta sección registra la corrección posterior a los errores reportados por el usuario. El inventario y los hashes anteriores corresponden a la entrega original de fase 4; no implican que se haya ejecutado la validación de esta corrección.
+
+**Causa de npm test:** `tsx --test tests/*.test.ts` dependía de que la terminal expandiera el comodín. En la ejecución Windows reportada, el ejecutor recibió literalmente `tests/*.test.ts` y buscó un archivo con ese nombre.
+
+Se inspeccionaron estos cinco archivos existentes: `tests/exams.test.ts`, `http.test.ts`, `offline.test.ts`, `qr-v3.test.ts` y `session.test.ts`. Se añade `tests/manifest.test.ts`. No se cambiaron las pruebas anteriores para resolver el descubrimiento.
+
+El script de package.json pasa a ser `node scripts/run-tests.mjs`. El nuevo script:
+
+- Descubre archivos reales terminados en `.test.ts`, recursivamente dentro de `tests/`, sin seguir enlaces simbólicos ni junctions.
+- Resuelve la raíz del proyecto desde su propio archivo, ordena las rutas y mantiene esa raíz como directorio de trabajo del ejecutor.
+- Resuelve el CLI del `tsx` ya instalado mediante `createRequire`; no usa npx, no descarga paquetes y no instala dependencias.
+- Ejecuta el Node actual con el CLI, `--test` y cada ruta concreta como argumento separado, con `shell:false`. Los argumentos adicionales de npm se pasan antes de las rutas.
+- Falla con mensaje y código 1 si no encuentra archivos, no puede descubrirlos, falta el ejecutor o falla su lanzamiento. Conserva el código de salida de las pruebas; una interrupción tampoco se presenta como éxito.
+
+Esto elimina la dependencia de expansión de comodines en PowerShell, cmd, Git Bash y shells de otros sistemas. El script requiere ejecución manual del usuario: no fue ejecutado durante esta corrección.
+
+**Causa de TypeScript:** `object()` entrega propiedades de tipo `unknown`. Las ramas anteriores llamaban a `fail()` y luego devolvían directamente `p.kind` y `s.entry_status`; el análisis de flujo no las reconocía como las uniones literales exigidas en esos retornos.
+
+Se añadieron funciones explícitas que validan el valor `unknown` y retornan únicamente en una rama válida:
+
+- `parsePhotoKind(): Photo['kind']` acepta solamente `profile` o `historical`.
+- `parseEntryStatus(): OfflineStudent['entry_status']` acepta solamente `PENDING` o `REGISTERED`.
+
+Los valores tipados se guardan en constantes y se usan en los objetos devueltos; el tipo de foto validado también forma parte de la ruta esperada. Todo valor inesperado termina en el mismo rechazo de contrato. No se usaron `as any`, `@ts-ignore` ni conversiones que eviten validar. Se revisó `contracts.ts` y se conservó sin modificar sus uniones.
+
+Se mantienen los estados fotográficos ABSENT/PRESENT, los dos descriptores distintos, tamaño positivo y máximo de 5 MiB, MIME, SHA-256 y ruta exacta por miembro/paquete/examen/tipo.
+
+**Pruebas nuevas, escritas sin ejecutar:** ambos tipos de foto con ABSENT y PRESENT; tipos de foto desconocidos y valores que no son cadenas; ambos estados de ingreso válidos y estados desconocidos; manifiestos, estudiantes, fotos y JSON malformados; regresión de tamaño/hash/MIME/ruta; y conservación del manifiesto y sobre sintéticos válidos existentes, sin mutar la entrada.
+
+Archivos de esta corrección:
+
+| Archivo | Cambio |
+| --- | --- |
+| `package.json` | Nuevo comando npm test multiplataforma. |
+| `scripts/run-tests.mjs` | Nuevo descubridor y lanzador del CLI local. |
+| `src/features/offline/manifest.ts` | Conversión validada de unknown a uniones literales. |
+| `tests/manifest.test.ts` | Nuevas pruebas del parser y sus validaciones. |
+| Este documento | Causas, alcance y ejecución manual pendiente. |
+
+Comandos para que el usuario ejecute manualmente, en PowerShell:
+
+```powershell
+Set-Location -LiteralPath 'C:\proyecto\eida-mobile'
+npm run typecheck
+npm test
+```
+
+No se ejecutaron esos comandos, instalaciones, pruebas, builds, prebuild, operaciones Git ni cambios del entorno. No se modificaron backend, frontend web, `/android`, autenticación, QR v3, lockfile ni dependencias. **El resultado de las suites y del typecheck queda pendiente de la ejecución manual del usuario.**
+
 ## Referencias oficiales consultadas
 
 - [Expo SQLite: SQLCipher y plugin](https://docs.expo.dev/versions/latest/sdk/sqlite/): requiere compilación nativa; Expo Go no incorpora SQLCipher.

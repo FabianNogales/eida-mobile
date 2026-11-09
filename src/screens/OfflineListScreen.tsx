@@ -23,6 +23,7 @@ export function OfflineListScreen() {
   const [students, setStudents] = useState<OfflineStudent[]>([]), [selected, setSelected] = useState<OfflineStudent | null>(null)
   const [photos, setPhotos] = useState<{ kind: string; uri: string }[]>([]), [event, setEvent] = useState<ProvisionalEvent | null>(null)
   const [error, setError] = useState<string | null>(null), [token, setToken] = useState(''), [busy, setBusy] = useState(false)
+  const receipt = offline.syncItems.find((item) => item.eventId === event?.event_id)?.receipt
   useEffect(() => {
     let current = true
     setPackage(null); setStudents([]); setSelected(null); setPhotos([]); setEvent(null); setToken('')
@@ -113,11 +114,16 @@ export function OfflineListScreen() {
         <Text style={s.body}>Ingreso conocido al descargar: {selected.entry_status}</Text>
         {selected.photos.filter((f) => f.state === 'ABSENT').map((f) => <Text key={f.kind} style={s.body}>Fotografía {f.kind}: ausencia informada por el servidor.</Text>)}
         {photos.map((f) => <View key={f.kind}><Text style={s.label}>Fotografía {f.kind}</Text><Image accessibilityLabel={`Fotografía ${f.kind} institucional`} source={{ uri: f.uri }} style={{ width: 220, height: 260 }} resizeMode="contain" /></View>)}
-        {event ? <Notice message={`REGISTRADO LOCALMENTE · PENDIENTE DE SINCRONIZACIÓN. UUID: ${event.event_id}. Hora estimada: ${laPazInstant(event.captured_at)}. Sin confirmación oficial.`} /> : <>
+        {event ? <>
+          {receipt?.status === 'ACCEPTED' ? <Notice message={`INGRESO OFICIAL CONFIRMADO por Laravel · registro ${receipt.entry_id}.`} /> :
+            receipt?.status === 'DUPLICATE' ? <Notice message={`El servidor informa un ingreso oficial existente (${receipt.entry_id}); esta operación es un duplicado.`} /> :
+            receipt ? <Notice message={`${receipt.status}: ${receipt.code}. ${receipt.message} Sin nuevo ingreso oficial confirmado.`} /> :
+            <Notice message={`REGISTRADO LOCALMENTE · PENDIENTE DE SINCRONIZACIÓN. UUID: ${event.event_id}. Hora estimada: ${laPazInstant(event.captured_at)}. Sin confirmación oficial.`} />}
+        </> : <>
           <ActionButton label="Registro manual provisional" busy={busy} onPress={() => capture('MANUAL')} />
           <ActionButton secondary label="Registro QR provisional" disabled={!token || !p.manifest.qr.available || busy} onPress={() => capture('QR')} />
         </>}
-        {p.manifest.qr.available && <Notice message="HU37 actual solo procesa evidencia QR v2. La evidencia v3 quedará preservada y bloqueada para envío hasta ampliar el backend." />}
+        {p.manifest.qr.available && <Notice message="La sincronización QR v3 requiere que Laravel anuncie su soporte y verifique la evidencia. La firma del celular no constituye confirmación oficial." />}
       </View>}
     </>}
   </Screen>

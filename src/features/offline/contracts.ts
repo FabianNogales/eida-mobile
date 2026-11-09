@@ -36,8 +36,8 @@ export interface DistributionContext {
   lists: { list_id: string; responsible_id: string; responsible_name: string | null; student_count: number
     surname_range: { from: string | null; to: string | null } }[]
 }
-// HU37 v1 accepts QR v2 only. V3 evidence cannot be submitted to that service yet.
-// Local extra fields stay OUTSIDE the existing wire event; no sender exists in phase 4.
+// Immutable HU36 capture format. Phase 5 negotiates HU37 protocol v2 before projecting wire events.
+// The historical compatibility marker is retained; capability negotiation decides whether v3 can be sent.
 export interface ProvisionalEvent {
   event_id: string; exam_id: string; package_id: string; list_id: string; version: number; room_id: string
   student_id: string; method: 'MANUAL' | 'QR'; captured_at: string; device_id: string; qr_token?: string

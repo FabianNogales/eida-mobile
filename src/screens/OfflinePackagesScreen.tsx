@@ -19,7 +19,8 @@ export function OfflinePackagesScreen() {
     <Text style={s.label}>Preparación: {offline.preparation.replaceAll('_', ' ')}</Text>
     {(offline.error || message) && <Notice message={offline.error ?? message!} />}
     {!offline.runtime ? <ActionButton label="Desbloquear almacén protegido" busy={offline.busy} onPress={() => { void offline.unlock() }} /> : <>
-      <Text style={s.body}>Operaciones locales pendientes: {offline.pending}. Se conservan cifradas al cerrar sesión; aún no se envían al servidor.</Text>
+      <Text style={s.body}>Operaciones locales pendientes de envío: {offline.pending}. Se conservan cifradas al cerrar sesión.</Text>
+      <ActionButton secondary label="Sincronización y resultados" onPress={() => router.push('/offline/sync')} />
       <ActionButton secondary label="Bloquear consulta local" onPress={() => localAction(offline.lock)} />
       <ActionButton secondary label="Actualizar estados locales" onPress={() => localAction(offline.refresh)} />
       {offline.packages.length === 0 && <Notice message="NO DESCARGADO. Abre un examen o colaboración con internet para preparar tu lista." />}
@@ -37,6 +38,6 @@ export function OfflinePackagesScreen() {
           onPress={() => { void offline.download(p.examId, p.id) }} />}
       </View>)}
     </>}
-    <Text style={s.body}>No hay confirmaciones oficiales en esta pantalla. HU37 revisará y confirmará los ingresos en una fase posterior.</Text>
+    <Text style={s.body}>Consulta los recibos de Laravel en Sincronización. Un registro local por sí solo no confirma un ingreso oficial.</Text>
   </Screen>
 }
