@@ -2,6 +2,8 @@
 
 Actualizado: 7 de noviembre de 2026, America/La_Paz.
 
+**Nota posterior, 8 de noviembre:** al iniciar fase 3, el usuario confirmó que finalizó esta fase y verificó satisfactoriamente QR v3 en un celular Android real. El estado y resultados de revisión que siguen describen la entrega anterior del asistente, no anulan esa comprobación posterior del usuario. El verificador, vectores y pruebas QR se preservan en fase 3; véase [fase 3](EIDA_CONTROL_FASE_3_AUTH_EXAMS.md).
+
 **Estado: base preparada a nivel de código. La revisión actual es exclusivamente estática. Las pruebas actuales NO se ejecutaron; no hay APK generado ni verificación demostrada en Android.** El usuario realizará instalaciones, comandos, pruebas y compilación. Las acciones anteriores están registradas en [HISTORIAL_FASE_2.md](HISTORIAL_FASE_2.md).
 
 ## A. Estado encontrado

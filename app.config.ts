@@ -11,6 +11,8 @@ const config: ExpoConfig = {
   android: { package: 'bo.eida.control.dev', versionCode: 1, allowBackup: false },
   plugins: [
     'expo-router',
+    'expo-secure-store',
+    ['expo-sqlite', { useSQLCipher: true }],
     ['expo-dev-client', { launchMode: 'most-recent' }],
     ['expo-splash-screen', { backgroundColor: '#172554' }],
   ],

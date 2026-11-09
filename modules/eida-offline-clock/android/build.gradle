@@ -1,0 +1,10 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+group = 'bo.eida.control.clock'
+version = '1.0.0'
+android {
+  namespace 'bo.eida.control.clock'
+  defaultConfig { versionCode 1; versionName '1.0.0' }
+}

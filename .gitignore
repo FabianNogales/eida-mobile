@@ -2,8 +2,14 @@ node_modules/
 .expo/
 .tools/
 .artifacts/
-android/
-ios/
+/android/
+/ios/
+modules/**/android/build/
+modules/**/android/.gradle/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
 dist/
 .env
 .env.*

@@ -1,11 +1,11 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native'
 import { theme } from '../config/theme'
 
-export function ActionButton({ label, onPress, busy = false, secondary = false }: {
-  label: string; onPress: () => void; busy?: boolean; secondary?: boolean
+export function ActionButton({ label, onPress, busy = false, secondary = false, disabled = false }: {
+  label: string; onPress: () => void; busy?: boolean; secondary?: boolean; disabled?: boolean
 }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy, busy }} disabled={busy}
-    onPress={onPress} style={({ pressed }) => [styles.button, secondary && styles.secondary, (pressed || busy) && { opacity: 0.7 }]}>
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy || disabled, busy }} disabled={busy || disabled}
+    onPress={onPress} style={({ pressed }) => [styles.button, secondary && styles.secondary, (pressed || busy || disabled) && { opacity: 0.7 }]}>
     {busy && <ActivityIndicator color="white" />}
     <Text style={[styles.label, secondary && styles.secondaryText]}>{label}</Text>
   </Pressable>

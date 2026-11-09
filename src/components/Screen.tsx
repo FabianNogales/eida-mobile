@@ -5,7 +5,7 @@ import { theme } from '../config/theme'
 
 export function Screen({ children, home = false }: PropsWithChildren<{ home?: boolean }>) {
   return <SafeAreaView style={styles.safe} edges={home ? ['top', 'left', 'right', 'bottom'] : ['left', 'right', 'bottom']}>
-    <ScrollView contentContainerStyle={styles.content}>{children}</ScrollView>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>{children}</ScrollView>
   </SafeAreaView>
 }
 const styles = StyleSheet.create({
