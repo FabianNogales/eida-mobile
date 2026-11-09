@@ -138,3 +138,7 @@ El párrafo anterior conserva los pendientes históricos de aquella sesión. La 
 ## Referencia posterior: fase 7 (solo código)
 
 Se escribió la integración de incidencias y acciones disciplinarias descrita en [Fase 7](EIDA_CONTROL_FASE_7_INCIDENCIAS.md). Se conserva el historial anterior: no se atribuye aprobación a las nuevas pruebas. En esta fase no se ejecutaron instalaciones, pruebas, compilaciones, migraciones, Git, despliegues ni modificaciones del sistema. La política central de tokens disciplinarios queda pendiente de coordinación expresa y permanece sin cambios.
+
+## Referencia posterior: fase 8, bloque A (solo código)
+
+Se desarrolló la base compartida de presentación y navegación descrita en [Fase 8, bloque A](EIDA_CONTROL_FASE_8_IMPLEMENTACION_FIGMA.md). La actualización con capturas flexibles incorpora Inicio, Exámenes, Pendientes y Perfil mediante Expo Router; agrega únicamente un resumen de navegación hacia las dos colas existentes. No se tocaron las fuentes QR/cámara, servicios ni pantallas previas de los otros bloques. La integración visual de logo/Poppins y las comprobaciones Android siguen pendientes. No se ejecutaron pruebas, instalaciones, compilaciones, Git o modificaciones del sistema; los resultados históricos previos no se atribuyen a estas pruebas nuevas.

@@ -337,3 +337,7 @@ La integración fuente de cámara se describe en [Fase 6: cámara QR](EIDA_CONTR
 ## Referencia posterior: fase 7
 
 [Fase 7: incidencias](EIDA_CONTROL_FASE_7_INCIDENCIAS.md) agrega reportes cifrados y adaptadores disciplinarios sin alterar el verificador QR ni el escáner. Las pruebas nuevas no se ejecutaron; migración/despliegue y la habilitación central de tokens requieren coordinación. No se ejecutaron instalaciones, comandos nativos, Git o cambios del sistema.
+
+## Referencia posterior: fase 8, bloque A
+
+[Fase 8, bloque A](EIDA_CONTROL_FASE_8_IMPLEMENTACION_FIGMA.md) incorpora tema, componentes, Safe Area, teclado y cuatro pestañas reales. Las capturas aportadas se utilizan como referencia flexible; Pendientes enlaza las colas existentes sin combinar sus operaciones. No se modificaron servicios, verificador, cámara ni pantallas previas de los bloques B/C/D. Logo SVG/Poppins y comprobación física siguen pendientes. Se escribieron pruebas sin ejecutarlas; no se instalaron dependencias ni se hicieron compilaciones, operaciones Git o cambios del entorno.
