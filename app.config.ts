@@ -8,10 +8,15 @@ const config: ExpoConfig = {
   orientation: 'portrait',
   userInterfaceStyle: 'light',
   platforms: ['android'],
-  android: { package: 'bo.eida.control.dev', versionCode: 1, allowBackup: false },
+  android: {
+    package: 'bo.eida.control.dev', versionCode: 1, allowBackup: false,
+    permissions: ['android.permission.CAMERA'],
+    blockedPermissions: ['android.permission.RECORD_AUDIO'],
+  },
   plugins: [
     'expo-router',
     'expo-secure-store',
+    ['expo-camera', { recordAudioAndroid: false, microphonePermission: false, barcodeScannerEnabled: true }],
     ['expo-sqlite', { useSQLCipher: true }],
     ['expo-dev-client', { launchMode: 'most-recent' }],
     ['expo-splash-screen', { backgroundColor: '#172554' }],

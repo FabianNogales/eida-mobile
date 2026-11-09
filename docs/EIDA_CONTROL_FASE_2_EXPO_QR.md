@@ -329,3 +329,11 @@ La revisión actual usó código y documentación locales de las versiones insta
 - [QuickCrypto](https://github.com/margelo/react-native-quick-crypto).
 
 Las páginas web actuales pueden describir versiones posteriores; para esta revisión mandan las declaraciones 1.1.9 conservadas localmente y package-lock.json.
+
+## Referencia posterior: fase 6
+
+La integración fuente de cámara se describe en [Fase 6: cámara QR](EIDA_CONTROL_FASE_6_CAMERA_QR.md). Reutiliza el verificador original sin alterarlo. `expo-camera` se declaró pero no se instaló; faltan las verificaciones manuales y la nueva APK. Esto no modifica el registro histórico de fase 2 ni acredita una prueba física nueva del escáner.
+
+## Referencia posterior: fase 7
+
+[Fase 7: incidencias](EIDA_CONTROL_FASE_7_INCIDENCIAS.md) agrega reportes cifrados y adaptadores disciplinarios sin alterar el verificador QR ni el escáner. Las pruebas nuevas no se ejecutaron; migración/despliegue y la habilitación central de tokens requieren coordinación. No se ejecutaron instalaciones, comandos nativos, Git o cambios del sistema.

@@ -11,7 +11,7 @@ export interface ResponsePort {
 }
 export type Transport = (url: string, init: RequestInit) => Promise<ResponsePort>
 export interface RequestOptions {
-  method?: 'GET' | 'POST' | 'DELETE'
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'
   token?: string
   body?: unknown
   query?: Record<string, string | number>

@@ -21,6 +21,7 @@ export function OfflinePackagesScreen() {
     {!offline.runtime ? <ActionButton label="Desbloquear almacén protegido" busy={offline.busy} onPress={() => { void offline.unlock() }} /> : <>
       <Text style={s.body}>Operaciones locales pendientes de envío: {offline.pending}. Se conservan cifradas al cerrar sesión.</Text>
       <ActionButton secondary label="Sincronización y resultados" onPress={() => router.push('/offline/sync')} />
+      <ActionButton secondary label="Incidencias locales, borradores y resultados" onPress={() => router.push('/offline/incidents')} />
       <ActionButton secondary label="Bloquear consulta local" onPress={() => localAction(offline.lock)} />
       <ActionButton secondary label="Actualizar estados locales" onPress={() => localAction(offline.refresh)} />
       {offline.packages.length === 0 && <Notice message="NO DESCARGADO. Abre un examen o colaboración con internet para preparar tu lista." />}

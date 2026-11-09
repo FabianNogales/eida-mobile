@@ -1,6 +1,7 @@
 import { anchoredNow } from './clock'
 import { parseEnvelope } from './manifest'
 import { OUTBOX_SCHEMA } from './sync/storageSchema'
+import { INCIDENT_SCHEMA } from '../incidents/storageSchema'
 import { assertBinding, sameBinding, type ClockSample, type Digest, type Envelope, type Manifest, type OfflineBinding,
   type OfflineStudent, type PackageRecord, type PreparationState, type ProvisionalEvent, type TimeAnchor } from './contracts'
 
@@ -22,7 +23,7 @@ export async function initializeCipher(db: SqlPort, key: string) {
   if (!/^[a-f0-9]{64}$/.test(key)) throw new ProtectedStorageError('Clave local no válida. Se conservaron los datos pendientes.')
   await db.execAsync(`PRAGMA key = "x'${key}'"; PRAGMA temp_store=MEMORY; PRAGMA foreign_keys=ON; PRAGMA secure_delete=ON;`)
   const version = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version')
-  if (version && version.user_version > 2) throw new ProtectedStorageError('La base offline requiere una versión más reciente de EIDA Control.')
+  if (version && version.user_version > 3) throw new ProtectedStorageError('La base offline requiere una versión más reciente de EIDA Control.')
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS packages (
       id TEXT PRIMARY KEY, exam_id TEXT NOT NULL, binding TEXT NOT NULL, state TEXT NOT NULL, envelope TEXT NOT NULL,
@@ -47,7 +48,8 @@ export async function initializeCipher(db: SqlPort, key: string) {
     CREATE TRIGGER IF NOT EXISTS immutable_event_update BEFORE UPDATE ON events BEGIN SELECT RAISE(ABORT, 'IMMUTABLE_EVENT'); END;
     CREATE TRIGGER IF NOT EXISTS immutable_event_delete BEFORE DELETE ON events BEGIN SELECT RAISE(ABORT, 'PENDING_EVENT'); END;
     ${OUTBOX_SCHEMA}
-    PRAGMA user_version=2;
+    ${INCIDENT_SCHEMA}
+    PRAGMA user_version=3;
   `)
   await db.runAsync('UPDATE packages SET state=?,error=? WHERE state=? AND active=0',
     'INCOMPLETA', 'La aplicación se cerró durante la preparación. Puedes reanudar con internet.', 'DESCARGANDO')

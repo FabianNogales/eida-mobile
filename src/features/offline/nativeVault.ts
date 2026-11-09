@@ -9,6 +9,7 @@ import { nativeClock } from './clock'
 import { id, uuid } from './manifest'
 import { SerializedSql, type RawSqlPort } from './serializedSql'
 import { OutboxRepository } from './sync/outbox'
+import { IncidentRepository } from '../incidents/repository'
 
 const options: SecureStore.SecureStoreOptions = { keychainService: 'bo.eida.control.offline.v1',
   keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY }
@@ -18,6 +19,7 @@ const grantKey = 'active-offline-scope'
 export interface VaultRuntime {
   repo: OfflineRepository; digest: Digest; uuid(): string; provider: Rs256Provider
   outbox: OutboxRepository
+  incidents: IncidentRepository
   validateKeys(manifest: Manifest): Promise<void>; check(): void
 }
 
@@ -100,7 +102,10 @@ export class NativeOfflineVault {
       const outbox = new OutboxRepository(db, binding, digest, check)
       await outbox.reconcile()
       await outbox.recoverInterrupted(new Date().toISOString())
-      const runtime: VaultRuntime = { repo: new OfflineRepository(db, binding, digest, check), outbox, digest,
+      const repo = new OfflineRepository(db, binding, digest, check)
+      const incidents = new IncidentRepository(db, repo, digest, check)
+      await incidents.recoverInterrupted()
+      const runtime: VaultRuntime = { repo, outbox, incidents, digest,
         uuid: () => crypto.randomUUID(), provider, check,
         async validateKeys(manifest) {
           if (!manifest.qr.available) return

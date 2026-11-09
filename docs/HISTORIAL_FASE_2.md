@@ -130,3 +130,11 @@ Los cambios backend de fase 1 ya existentes se conservaron. No se repitieron com
 El procedimiento PowerShell está en [la documentación principal](EIDA_CONTROL_FASE_2_EXPO_QR.md#g-procedimiento-manual-powershell-en-windows): versiones Node/Java, dependencias, SDK, dispositivo físico, development build, Metro, pruebas de escritorio, diagnóstico real y generación posterior de APK.
 
 Pendientes: ejecutar las 44 pruebas/typecheck, completar compilación nativa en la ruta real, verificar 29/29 en celular y guardar evidencia, generar y probar un APK autónomo sin red. Después podrán abordarse login HTTPS/Sanctum, SecureStore, HU36, SQLite cifrado, cámara, incidencias y HU37.
+
+## Referencia posterior: fase 6 (solo código)
+
+El párrafo anterior conserva los pendientes históricos de aquella sesión. La cámara ahora tiene integración fuente documentada en [Fase 6](EIDA_CONTROL_FASE_6_CAMERA_QR.md), sobre HU36/HU37 existentes. El usuario confirmó posteriormente el verificador QR v3 en Android y las pruebas de fase 4; esos resultados no se atribuyen a las nuevas pruebas de cámara o fase 5. En fase 6 no se ejecutaron instalaciones, pruebas, comandos Git, Prebuild, compilaciones ni cambios de Windows, `android/` o lockfile. La cámara física y la APK independiente continúan pendientes.
+
+## Referencia posterior: fase 7 (solo código)
+
+Se escribió la integración de incidencias y acciones disciplinarias descrita en [Fase 7](EIDA_CONTROL_FASE_7_INCIDENCIAS.md). Se conserva el historial anterior: no se atribuye aprobación a las nuevas pruebas. En esta fase no se ejecutaron instalaciones, pruebas, compilaciones, migraciones, Git, despliegues ni modificaciones del sistema. La política central de tokens disciplinarios queda pendiente de coordinación expresa y permanece sin cambios.

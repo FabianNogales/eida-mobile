@@ -9,11 +9,15 @@ import { sameBinding, type PackageRecord, type PreparationState } from './contra
 import { OfflineSyncController } from './sync/controller'
 import { SyncApi } from './sync/api'
 import type { SyncItem, SyncProgress } from './sync/contracts'
+import { DisciplineApi } from '../incidents/api'
+import { IncidentSync } from '../incidents/sync'
+import type { IncidentItem } from '../incidents/contracts'
 
 interface OfflineContext {
   runtime: VaultRuntime | null; packages: PackageRecord[]; pending: number; busy: boolean; error: string | null
   preparation: PreparationState
   syncItems: SyncItem[]; syncProgress: SyncProgress; synchronize(): Promise<void>
+  incidentItems: IncidentItem[]; synchronizeIncidents(): Promise<void>
   unlock(): Promise<void>; lock(): Promise<void>; refresh(): Promise<void>; download(examId: string, resumeId?: string): Promise<void>
 }
 const Context = createContext<OfflineContext | null>(null)
@@ -27,10 +31,11 @@ export function OfflineProvider({ children }: PropsWithChildren) {
   const [error, setError] = useState<string | null>(null)
   const [preparation, setPreparation] = useState<PreparationState>('NO_DESCARGADO')
   const [syncItems, setSyncItems] = useState<SyncItem[]>([])
+  const [incidentItems, setIncidentItems] = useState<IncidentItem[]>([])
   const [syncProgress, setSyncProgress] = useState<SyncProgress>({ running: false, total: 0, processed: 0, batches: 0, message: null })
   const work = useRef(false)
   const clearView = useCallback(() => {
-    setRuntime(null); setPackages([]); setPending(0); setSyncItems([])
+    setRuntime(null); setPackages([]); setPending(0); setSyncItems([]); setIncidentItems([])
     setSyncProgress({ running: false, total: 0, processed: 0, batches: 0, message: null })
   }, [])
   const lock = useCallback(async () => { clearView(); await vault.lock() }, [vault, clearView])
@@ -45,7 +50,8 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     }
     const current = await r.repo.list(), count = await r.repo.pendingCount()
     const items = await r.outbox.items()
-    r.check(); setPackages(current); setPending(count); setSyncItems(items)
+    const reports = await r.incidents.items()
+    r.check(); setPackages(current); setPending(count); setSyncItems(items); setIncidentItems(reports)
   }, [vault, clearView])
   useEffect(() => controller?.onSecurityBoundary(async (reason) => {
     clearView(); await vault.closeAccess(reason)
@@ -98,6 +104,19 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     } catch (e) { setError(e instanceof Error ? e.message : 'No se confirmó la sincronización. Los eventos se conservaron.'); await refresh().catch(() => {}) }
     finally { work.current = false; setBusy(false) }
   }
-  return <Context.Provider value={{ runtime, packages, pending, busy, error, preparation, syncItems, syncProgress, synchronize, unlock, lock, refresh, download }}>{children}</Context.Provider>
+  const synchronizeIncidents = async () => {
+    if (work.current) return
+    const r = vault.runtime
+    if (!r || !controller?.offlineBinding()) { setError('Desbloquea el almacén y valida la cuenta original para enviar incidencias.'); return }
+    work.current = true; setBusy(true); setError(null)
+    try {
+      await new IncidentSync(r.incidents, new DisciplineApi(controller), () => controller.offlineBinding(), r.uuid).run(() => {
+        if (vault.runtime === r) void refresh().catch(() => {})
+      })
+      await refresh()
+    } catch { setError('No se confirmó el envío de incidencias. Los reportes originales se conservan protegidos.'); await refresh().catch(() => {}) }
+    finally { work.current = false; setBusy(false) }
+  }
+  return <Context.Provider value={{ runtime, packages, pending, busy, error, preparation, syncItems, syncProgress, synchronize, incidentItems, synchronizeIncidents, unlock, lock, refresh, download }}>{children}</Context.Provider>
 }
 export function useOffline() { const value = useContext(Context); if (!value) throw new Error('OfflineProvider no está disponible.'); return value }

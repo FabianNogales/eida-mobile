@@ -29,6 +29,7 @@ export function CollaborationsScreen() {
       <Text style={s.body}>{examDate(exam.exam_date)} · {exam.start_time.slice(0, 5)} · {exam.duration_minutes} min</Text>
       <Text style={s.body}>Ambiente: {exam.room ?? 'No informado'}</Text>
       <ActionButton secondary label="Mi lista y paquete offline" onPress={() => router.push({ pathname: '/(private)/offline-distribution', params: { examId: String(exam.exam_id) } })} />
+      <ActionButton secondary label="Incidencias del examen autorizado" onPress={() => router.push({ pathname: '/(private)/incidents', params: { examId: String(exam.exam_id) } })} />
     </View>)}
     <Text style={s.body}>Una asignación revocada o no disponible deja de aparecer al actualizar. La descarga requiere autorización vigente y una lista propia.</Text>
   </Screen>

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Image, Text, View } from 'react-native'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import { Screen } from '../components/Screen'
 import { ActionButton } from '../components/ActionButton'
 import { Notice } from '../components/Notice'
@@ -23,6 +23,14 @@ export function OfflineListScreen() {
   const [students, setStudents] = useState<OfflineStudent[]>([]), [selected, setSelected] = useState<OfflineStudent | null>(null)
   const [photos, setPhotos] = useState<{ kind: string; uri: string }[]>([]), [event, setEvent] = useState<ProvisionalEvent | null>(null)
   const [error, setError] = useState<string | null>(null), [token, setToken] = useState(''), [busy, setBusy] = useState(false)
+  const [canDraft, setCanDraft] = useState(false)
+  useFocusEffect(useCallback(() => {
+    let current = true; setCanDraft(false)
+    if (r) void nativeClock.sample().then((sample) => r.incidents.canDraft(packageId, sample)).then((allowed) => {
+      r.check(); if (current) setCanDraft(allowed)
+    }).catch(() => {})
+    return () => { current = false }
+  }, [r, packageId, currentState]))
   const receipt = offline.syncItems.find((item) => item.eventId === event?.event_id)?.receipt
   useEffect(() => {
     let current = true
@@ -89,6 +97,8 @@ export function OfflineListScreen() {
     {error && <Notice message={error} />}
     {p && viewScope.current === r && <>
       <Text style={s.subtitle}>{p.manifest.exam.name} · {p.manifest.responsible_name}</Text>
+      <ActionButton secondary label="Reportar incidencia offline" onPress={() => router.push({ pathname: '/offline/report-incident', params: { packageId } })} />
+      {canDraft && <ActionButton secondary label="Preparar borrador de infracción · docente validado" onPress={() => router.push({ pathname: '/offline/infraction-draft', params: { packageId } })} />}
       <Text style={s.body}>Lista {p.manifest.list_id} · v{p.manifest.version} · {p.manifest.surname_range.from ?? '—'} a {p.manifest.surname_range.to ?? '—'}</Text>
       <Notice message={`Habilitación e ingreso conocidos al ${laPazInstant(p.manifest.prepared_at)}. Los cambios y revocaciones posteriores pueden desconocerse. Vigencia: ${laPazInstant(p.manifest.expires_at)}.`} />
       <FormField label="Buscar localmente por nombre, apellidos, SIS o CI" value={term} maxLength={120} onChangeText={(v) => { setOffset(0); setTerm(v) }} />
@@ -98,6 +108,7 @@ export function OfflineListScreen() {
       <ActionButton secondary label="Página anterior" disabled={offset === 0 || busy} onPress={() => setOffset(Math.max(0, offset - 50))} />
       <ActionButton secondary label="Página siguiente" disabled={students.length < 50 || busy} onPress={() => setOffset(offset + 50)} />
       <Text style={s.subtitle}>Identificar mediante QR v3</Text>
+      <ActionButton label="Escanear QR" disabled={busy} onPress={() => router.push({ pathname: '/offline/scan', params: { packageId } })} />
       <Text style={s.body}>{p.manifest.qr.available ? 'Firma y lista verificables con material público del snapshot. Revocaciones posteriores desconocidas.' : 'NO DISPONIBLE: el servidor actual emite QR v2. La consulta manual sigue disponible.'}</Text>
       <FormField label="Contenido QR (lector externo o pegado manual)" value={token} maxLength={4096} onChangeText={setToken} autoCapitalize="none" autoCorrect={false} multiline />
       <ActionButton label="Verificar QR e identificar" disabled={!token || busy} onPress={() => { void action(async () => {

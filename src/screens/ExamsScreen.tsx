@@ -41,6 +41,7 @@ export function ExamsScreen() {
         <Text style={s.body}>Ambiente: {exam.room ? `${exam.room.name} (${exam.room.code})` : 'No informado'}</Text>
         <Text style={s.body}>Estado oficial: {exam.status}</Text>
         <ActionButton secondary label="Distribución y mi paquete offline" onPress={() => router.push({ pathname: '/(private)/offline-distribution', params: { examId: String(exam.id) } })} />
+        <ActionButton secondary label="Incidencias y acciones autorizadas" onPress={() => router.push({ pathname: '/(private)/incidents', params: { examId: String(exam.id) } })} />
       </View>)}
       <ActionButton secondary label="Página anterior" disabled={page <= 1 || query.loading} onPress={() => setPage((p) => p - 1)} />
       <ActionButton secondary label="Página siguiente" disabled={page >= query.data.lastPage || query.loading} onPress={() => setPage((p) => p + 1)} />
