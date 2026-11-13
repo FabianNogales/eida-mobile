@@ -100,17 +100,28 @@ test('QR v2 is explicitly unsupported offline and malformed text is not followed
   }
   assert.equal(await h.repo.pendingCount(), 0)
 })
-test('unavailable trusted keys and known ineligibility or revocation reject scans', async (t) => {
-  for (const condition of ['keys', 'eligibility', 'revocation']) {
+test('known ineligibility or revocation rejects an otherwise valid scan', async (t) => {
+  for (const condition of ['eligibility', 'revocation']) {
     const m = manifest()
-    if (condition === 'keys') m.qr = { available: false, reason: 'V2', issuer: null, audience: null, keys: [], revoked_jtis: null }
     if (condition === 'eligibility') m.students[0]!.eligibility_status = 'INELIGIBLE'
     if (condition === 'revocation') m.qr.revoked_jtis = [vectors.claims.jti]
     const h = await setup(t, m)
     await h.session.detect(start(h.session), { type: 'qr', data: valid })
-    expectError(h.session, /no ofrece|habilitación|revocación/)
+    expectError(h.session, /habilitación|revocación/)
     assert.equal(await h.repo.pendingCount(), 0)
   }
+})
+test('opening the scanner directly cannot start the camera when the list has no QR trust material', async (t) => {
+  const m = manifest()
+  m.qr = { available: false, reason: null, issuer: null, audience: null, keys: [], revoked_jtis: null }
+  const h = await setup(t, m)
+  assert.equal(h.session.state.phase, 'blocked')
+  expectError(h.session, /no incluye claves públicas/)
+  h.session.cameraAccess(true)
+  assert.equal(h.session.start(), false)
+  assert.equal(await h.session.detect(0, { type: 'qr', data: valid }), false)
+  assert.equal(await h.session.confirm(), null)
+  assert.equal(await h.repo.pendingCount(), 0)
 })
 test('camera without permission, unready preview and non-QR callbacks cannot verify or capture', async (t) => {
   const h = await setup(t)

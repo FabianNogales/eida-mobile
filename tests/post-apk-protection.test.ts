@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { OfflineProtectionError, inspectProtection, protectedKey, protectionFailure, requireStrongBiometry, type ProtectedKeyPort } from '../src/features/offline/protection'
+import { OfflineProtectionError, inspectProtection, protectedKey, protectionFailure, type ProtectedKeyPort } from '../src/features/offline/protection'
 import { initializeCipher, ProtectedStorageError, type SqlPort } from '../src/features/offline/repository'
 
 // Synthetic key material and test ports only; never imported by application code.
@@ -16,48 +16,6 @@ function keyPort(marker: string | null = '1', key: string | null = KEY) {
   return { state, port, generate: () => { state.generated++; return KEY } }
 }
 const check = () => {}
-
-test('when biometrics are required, no availability blocks keys and database access', async () => {
-  const h = keyPort(null, null)
-  let databaseOpened = false
-  await assert.rejects(async () => {
-    requireStrongBiometry(() => false)
-    await protectedKey(h.port, true, h.generate, check)
-    databaseOpened = true
-  }, { code: 'BIOMETRY_UNAVAILABLE' })
-  assert.equal(databaseOpened, false)
-  assert.equal(h.state.generated, 0)
-  assert.equal(h.state.writes, 0)
-})
-
-test('native hardware and enrollment reasons are distinguished only when native errors explicitly supply them', () => {
-  for (const [message, code] of [
-    ['Hardware not present.', 'BIOMETRY_UNSUPPORTED'],
-    ['No biometrics are currently enrolled', 'BIOMETRY_NOT_ENROLLED'],
-    ['Hardware unavailable.', 'BIOMETRY_UNAVAILABLE'],
-  ]) assert.equal(protectionFailure({ code: 'ERR_AUTHENTICATION', message }).code, code)
-  assert.throws(() => requireStrongBiometry(() => { throw new Error('native module unavailable') }), { code: 'NATIVE_CONFIGURATION' })
-})
-
-test('biometric cancellation preserves the existing key and permits a new authentication attempt', async () => {
-  const h = keyPort()
-  let cancelled = true
-  h.port.read = async () => {
-    if (cancelled) throw { code: 'ERR_AUTHENTICATION', message: 'Could not authenticate the user: User canceled the authentication.' }
-    return h.state.key
-  }
-  await assert.rejects(protectedKey(h.port, true, h.generate, check), { code: 'AUTH_CANCELLED' })
-  assert.equal(h.state.key, KEY)
-  assert.equal(h.state.writes, 0)
-  assert.equal(h.state.generated, 0)
-  cancelled = false
-  assert.equal(await protectedKey(h.port, true, h.generate, check), KEY)
-})
-
-test('lockout is not reported as cancellation or as a SQLCipher failure', () => {
-  assert.equal(protectionFailure({ code: 'ERR_AUTHENTICATION', message: 'Lockout. Native details.' }).code, 'AUTH_LOCKED')
-  assert.equal(protectionFailure({ code: 'ERR_AUTHENTICATION', message: 'Unknown error (code: 5)' }).code, 'INTERRUPTED')
-})
 
 test('a null invalidated or lost protected key with an existing marker is never regenerated', async () => {
   const h = keyPort('1', null)
@@ -116,26 +74,25 @@ test('an account/lifecycle boundary while reading prevents the old key flow from
   assert.equal(h.state.writes, 0); assert.equal(h.state.marks, 0)
 })
 
-test('diagnostics separate biometrics from the SQLCipher response and always close the probe', async () => {
+test('SQLCipher diagnostics report the version and close the probe', async () => {
   let closed = 0
   // Deliberately synthetic unit port. The native adapter opens a real :memory:
   // SQLite connection; this fixture is not evidence of SQLCipher on Android.
-  const report = await inspectProtection(() => false, async () => ({
+  const report = await inspectProtection(async () => ({
     version: async () => ({ cipher_version: '4.6.1 community' }), close: async () => { closed++ },
   }))
-  assert.equal(report.biometric, 'unavailable')
   assert.equal(report.cipher, 'available')
   assert.equal(report.cipherVersion, '4.6.1')
   assert.equal(closed, 1)
 })
 
-test('missing cipher, missing native integration and failed probe remain separate from biometric cancellation', async () => {
+test('the diagnostics distinguishes a missing cipher from a failed probe', async () => {
   let closed = false
-  const missing = await inspectProtection(() => true, async () => ({
+  const missing = await inspectProtection(async () => ({
     version: async () => null, close: async () => { closed = true },
   }))
-  assert.equal(missing.biometric, 'available'); assert.equal(missing.cipher, 'missing'); assert.equal(closed, true)
-  const failure = await inspectProtection(() => true, async () => { throw new Error('DO_NOT_DISPLAY_NATIVE_DETAILS') })
+  assert.equal(missing.cipher, 'missing'); assert.equal(closed, true)
+  const failure = await inspectProtection(async () => { throw new Error('DO_NOT_DISPLAY_NATIVE_DETAILS') })
   assert.equal(failure.cipher, 'error'); assert.equal(failure.cipherVersion, null)
   assert.doesNotMatch(JSON.stringify(failure), /DO_NOT_DISPLAY/)
 })

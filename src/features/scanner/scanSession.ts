@@ -3,6 +3,7 @@ import type { ClockSample, Digest, OfflineStudent, ProvisionalEvent } from '../o
 import type { OfflineRepository } from '../offline/repository'
 import { anchoredNow } from '../offline/clock'
 import { captureProvisional, identifyQr } from '../offline/identity'
+import { offlineQrBlock } from './qrAvailability'
 
 export interface ScanIdentity {
   student: OfflineStudent
@@ -46,6 +47,12 @@ export class QrScanSession {
       const pkg = await this.services.repo.usable(this.packageId, sample)
       this.services.check()
       if (this.disposed) return null
+      const qrBlock = offlineQrBlock(pkg.manifest.qr)
+      if (qrBlock) {
+        this.reset()
+        this.publish({ phase: 'blocked', message: qrBlock })
+        return null
+      }
       const remaining = Date.parse(pkg.manifest.expires_at) - anchoredNow(pkg.anchor, sample)
       if (this.state.phase === 'checking') this.publish({ phase: 'idle' })
       return remaining

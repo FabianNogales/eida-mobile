@@ -119,7 +119,7 @@ export function InfractionsScreen() {
     <OnlineAccessState loading={context.loading} error={context.error}
       message="Solo el docente autorizado puede gestionar infracciones de este examen." retry={refresh.onRefresh} />}</Screen>
   if (draftId && (!offline.runtime || draftScope?.runtime !== offline.runtime || draftScope?.id !== draftId)) return <Screen>
-    <Notice message={message ?? 'El borrador permanece cifrado. Desbloquea su almacén y espera la revisión de identidad antes de abrirlo.'} /></Screen>
+    <Notice message={message ?? offline.error ?? 'El borrador permanece cifrado hasta comprobar el acceso a la información local.'} /></Screen>
   return <Screen refresh={refresh}>
     <AppText variant="subtitle" accessibilityRole="header">Gestión docente de infracciones</AppText>
     <Notice tone="info" message="Registro y cambios de estado solo online. Un borrador local no es una infracción oficial y no se envía automáticamente." />

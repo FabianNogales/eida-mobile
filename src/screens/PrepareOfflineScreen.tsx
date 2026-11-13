@@ -9,6 +9,7 @@ import { Notice } from '../components/Notice'
 import { ExamIcon } from '../components/general/ExamIcon'
 import { TextAction } from '../components/general/TextAction'
 import { QueryFeedback } from '../components/general/QueryFeedback'
+import { OfflineAccessStatus } from '../components/control/OfflineAccessStatus'
 import { theme } from '../config/theme'
 import { useAuth } from '../features/auth/AuthProvider'
 import { OfflineApi } from '../features/offline/api'
@@ -110,10 +111,10 @@ function Preparation({ examId }: { examId: string }) {
         <AppText variant="subtitle" accessibilityLiveRegion="polite" style={s.center}>{checking ? 'Comprobando lista' : state.label}</AppText>
         {!checking && <AppText style={[s.center, s.muted]}>{state.message}</AppText>}
       </Card>
-      {(checkError || (authorized && offline.error)) && <Notice tone="error" message={checkError ?? offline.error!} />}
+      {(checkError || (authorized && runtime && offline.error)) && <Notice tone="error" message={checkError ?? offline.error!} />}
       {state.ready && checked && latest?.state === 'INCOMPLETA' && latest.id !== checked.id &&
         <Notice message="La descarga nueva quedó incompleta. Tu copia anterior sigue disponible." />}
-      {authorized && (!runtime ? <ActionButton label="Desbloquear mi lista" busy={offline.busy} onPress={() => { void offline.unlock() }} />
+      {authorized && (!runtime ? <OfflineAccessStatus />
         : state.ready && checked ? <>
           <ActionButton label="Ir al control de ingreso" icon={<ExamIcon name="qr" color={theme.colors.onPrimary} />}
             disabled={offline.busy} onPress={() => router.push(listDestination(checked.id))} />

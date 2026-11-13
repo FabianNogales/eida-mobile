@@ -47,7 +47,7 @@ export function preparationPresentation({ authorized, unlocked, downloading, che
   latest?: PackageRecord; failed: boolean
 }) {
   if (!authorized) return { label: 'Lista sin autorización', message: 'El examen no tiene una lista disponible para tu cuenta.', tone: 'warning' as const, ready: false }
-  if (!unlocked) return { label: 'Lista protegida', message: 'Desbloquea el almacén para consultar su estado.', tone: 'neutral' as const, ready: false }
+  if (!unlocked) return { label: 'Lista protegida', message: 'La información se guarda cifrada en este dispositivo.', tone: 'neutral' as const, ready: false }
   const ready = !downloading && checked?.active === true && checked.state === 'PREPARADO'
   const state = downloading ? 'DESCARGANDO' : ready ? 'PREPARADO' : latest?.state === 'PREPARADO' ? 'ERROR' :
     failed && (!latest || latest.state === 'NO_DESCARGADO') ? 'ERROR' : latest?.state ?? 'NO_DESCARGADO'
@@ -59,7 +59,9 @@ export function scanIssue(message: string) {
   if (message.includes('TIME_INVALID')) return 'El QR está vencido o todavía no es válido.'
   if (message.includes('no pertenece a tu lista')) return 'El estudiante no pertenece a tu lista.'
   if (message.includes('ya informaba un ingreso')) return 'La copia ya registra un ingreso para este estudiante.'
-  if (/UNKNOWN_KID|CRYPTO_UNAVAILABLE|CONTEXT_INVALID|QR v2|no ofrece QR v3/.test(message)) {
+  if (message.includes('QR v2')) return 'Este QR v2 no se puede verificar sin conexión. Usa la búsqueda manual.'
+  if (message.includes('UNKNOWN_KID')) return 'La lista no incluye la clave pública de este QR. Usa la búsqueda manual.'
+  if (/CRYPTO_UNAVAILABLE|CONTEXT_INVALID|no ofrece QR v3/.test(message)) {
     return 'Este QR no se puede verificar sin conexión. Usa la búsqueda manual.'
   }
   if (/^QR rechazado:|^QR malformado/.test(message)) return 'El QR no es válido. Escanea otro código o busca al estudiante.'

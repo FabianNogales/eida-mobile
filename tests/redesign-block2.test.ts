@@ -6,6 +6,7 @@ import type { OfflineStudent, PackageRecord, PreparationState } from '../src/fea
 import type { SyncItem } from '../src/features/offline/sync/contracts'
 import * as presentation from '../src/ui/entryPresentation'
 import * as control from '../src/ui/controlScreens'
+import { offlineQrBlock } from '../src/features/scanner/qrAvailability'
 import { anchor, envelope, manifest, packageId } from './support/offlineFixtures'
 import { elements, renderedText, renderPresentation } from './support/renderPresentation'
 
@@ -102,6 +103,15 @@ test('scanner messages distinguish invalid, unverifiable and wrong-exam QR witho
   assert.match(presentation.scanIssue('QR v2 no es verificable criptográficamente offline.'), /no se puede verificar/)
 })
 
+test('a usable list needs the server flag and verification material to offer offline QR', () => {
+  const { qr } = manifest()
+  assert.equal(offlineQrBlock(qr), null)
+  assert.match(offlineQrBlock({ ...qr, available: false, reason: 'PRODUCTION_QR_V3_NOT_CONFIRMED' }) ?? '', /no anunció QR v3/)
+  assert.match(offlineQrBlock({ ...qr, keys: [] }) ?? '', /claves públicas/)
+  assert.match(offlineQrBlock({ ...qr, audience: null }) ?? '', /no está habilitada/)
+  assert.match(offlineQrBlock({ ...qr, available: false, reason: 'PRIVATE_SERVER_DETAIL' }) ?? '', /^La verificación/)
+})
+
 test('control retains one virtualized list and scanner manual fallback returns to the same package with search focused', () => {
   const source = (path: string) => readFileSync(new URL('../src/' + path, import.meta.url), 'utf8')
   const list = source('screens/OfflineListScreen.tsx'), scanner = source('screens/OfflineScannerScreen.tsx')
@@ -112,5 +122,6 @@ test('control retains one virtualized list and scanner manual fallback returns t
   assert.match(scanner, /router\.dismissTo\(listDestination\(packageId, true\)\)/)
   assert.match(scanner, /<Camera scanId=\{state.phase === 'scanning' \? state.scanId : null\}/)
   assert.match(scanner, /onDetection=\{onDetection\}/)
+  assert.match(scanner, /if \(!cameraAllowed \|\| !focused \|\| !foreground\) return/)
   assert.match(scanner, /onConfirm=\{\(\) => \{\s*void view\.session\.confirm\(/)
 })

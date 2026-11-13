@@ -18,7 +18,7 @@ export async function initializeCipher(db: SqlPort, key: string) {
   // MUST precede key, DDL and any PII. Plain SQLite ignores PRAGMA key silently.
   const cipher = await db.getFirstAsync<Record<string, unknown>>('PRAGMA cipher_version')
   if (!cipher || !Object.values(cipher).some((v) => typeof v === 'string' && /^\d+\./.test(v))) {
-    throw new ProtectedStorageError('SQLCipher no está compilado. Se bloqueó la persistencia; instala una nueva development build.')
+    throw new ProtectedStorageError('Esta APK no incluye SQLCipher. Se bloqueó el almacenamiento local.')
   }
   if (!/^[a-f0-9]{64}$/.test(key)) throw new ProtectedStorageError('Clave local no válida. Se conservaron los datos pendientes.')
   await db.execAsync(`PRAGMA key = "x'${key}'"; PRAGMA temp_store=MEMORY; PRAGMA foreign_keys=ON; PRAGMA secure_delete=ON;`)

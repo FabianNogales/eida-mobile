@@ -7,6 +7,7 @@ import { Notice } from '../components/Notice'
 import { Card } from '../components/Card'
 import { LoadingState } from '../components/FeedbackStates'
 import { EntryResult, EntryReview } from '../components/control/EntryReview'
+import { OfflineAccessStatus } from '../components/control/OfflineAccessStatus'
 import { TextAction } from '../components/general/TextAction'
 import { theme } from '../config/theme'
 import { goBack } from '../navigation/back'
@@ -23,12 +24,15 @@ interface ScanView { session: QrScanSession; state: QrScanState; runtime: VaultR
 export function OfflineScannerScreen() {
   const { packageId: param } = useLocalSearchParams<{ packageId: string }>(), router = useRouter(), offline = useOffline()
   const packageId = typeof param === 'string' ? param : '', runtime = offline.runtime
-  const [focused, setFocused] = useState(false), [foreground, setForeground] = useState(AppState.currentState === 'active')
+  const [focused, setFocused] = useState(false)
+  const [foreground, setForeground] = useState(() => AppState.currentState == null || AppState.currentState === 'active')
   const [view, setView] = useState<ScanView | null>(null), sessionRef = useRef<QrScanSession | null>(null)
   const [granted, setGranted] = useState(false)
   const [Camera, setCamera] = useState<ComponentType<NativeQrCameraProps> | null>(null)
   const [cameraError, setCameraError] = useState<string | null>(null)
   const started = useRef<QrScanSession | null>(null)
+  const cameraAllowed = !!view && view.session === sessionRef.current && view.runtime === runtime &&
+    view.packageId === packageId && !['checking', 'blocked', 'closed'].includes(view.state.phase)
 
   useFocusEffect(useCallback(() => {
     setFocused(true)
@@ -65,14 +69,16 @@ export function OfflineScannerScreen() {
     }
   }, [runtime, packageId, focused, foreground])
   useEffect(() => {
-    if (!runtime || !focused || !foreground) return
+    if (!cameraAllowed || !focused || !foreground) return
     let current = true
     setCameraError(null)
     void import('../features/scanner/NativeQrCamera').then((module) => {
       if (current) setCamera(() => module.NativeQrCamera)
-    }).catch(() => { if (current) setCameraError('La cámara no está disponible. Puedes buscar al estudiante manualmente.') })
+    }).catch(() => {
+      if (current) setCameraError('No se pudo cargar la cámara de esta instalación. Puedes buscar al estudiante manualmente.')
+    })
     return () => { current = false }
-  }, [runtime, focused, foreground])
+  }, [cameraAllowed, focused, foreground])
 
   const session = view?.session
   usePreventRemove(!!runtime && view?.runtime === runtime && view?.state.phase === 'saving')
@@ -91,10 +97,8 @@ export function OfflineScannerScreen() {
 
   if (!packageId) return <Screen><Notice message="Abre el escáner desde una lista autorizada." />
     <ActionButton label="Ver paquetes" onPress={() => router.replace('/offline')} /></Screen>
-  if (!runtime) return <Screen><Notice message="La lista está protegida. Desbloquéala antes de escanear." />
-    <ActionButton label="Desbloquear mi lista" busy={offline.busy} onPress={() => { void offline.unlock() }} />
-    <TextAction label="Buscar manualmente" onPress={() => router.dismissTo(listDestination(packageId, true))} />
-    {offline.error && <Notice tone="error" message={offline.error} />}</Screen>
+  if (!runtime) return <Screen><OfflineAccessStatus loadingLabel="Abriendo tu lista" />
+    <TextAction label="Buscar manualmente" onPress={() => router.dismissTo(listDestination(packageId, true))} /></Screen>
   if (!focused || !foreground || !view || view.runtime !== runtime || view.packageId !== packageId) {
     return <Screen><LoadingState label="Preparando escáner" /></Screen>
   }
@@ -108,7 +112,7 @@ export function OfflineScannerScreen() {
   const heading = exam ? examHeading(exam) : null
   const examName = heading ? [heading.title, heading.subtitle].filter(Boolean).join(' · ') : 'Examen de tu lista'
   const cameraActive = state.phase === 'idle' || state.phase === 'scanning' || state.phase === 'error'
-  const showPreview = state.phase === 'scanning' || (cameraActive && !granted)
+  const showPreview = state.phase === 'scanning' || (cameraActive && (!granted || !!cameraError))
   return <Screen>
     <Stack.Screen options={{ title, headerBackVisible: state.phase !== 'saving', gestureEnabled: state.phase !== 'saving' }} />
     {state.phase === 'checking' && <LoadingState label="Comprobando tu lista" />}
@@ -117,7 +121,7 @@ export function OfflineScannerScreen() {
       <View style={s.camera} importantForAccessibility={showPreview ? 'auto' : 'no-hide-descendants'}>
         {showPreview && !Camera && !cameraError && <LoadingState label="Preparando cámara" />}
         {showPreview && cameraError && <Notice tone="error" message={cameraError} />}
-        {Camera && !cameraError && !['checking', 'blocked', 'closed'].includes(state.phase) &&
+        {Camera && !cameraError && cameraAllowed &&
           <Camera scanId={state.phase === 'scanning' ? state.scanId : null}
             onAccess={onAccess} onReady={onReady} onDetection={onDetection} onFailure={onFailure} />}
         {granted && state.phase === 'scanning' && !cameraError && <View pointerEvents="none" accessible={false}

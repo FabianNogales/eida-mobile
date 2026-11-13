@@ -10,6 +10,8 @@ import { Notice } from '../components/Notice'
 import { FormField } from '../components/FormField'
 import type { TextInputHandle } from '../components/keyboardFocus'
 import { StudentRow } from '../components/control/StudentRow'
+import { offlineQrBlock } from '../features/scanner/qrAvailability'
+import { OfflineAccessStatus } from '../components/control/OfflineAccessStatus'
 import { StudentDetailModal, type StudentStep } from '../components/control/StudentDetailModal'
 import { ExamIcon } from '../components/general/ExamIcon'
 import { TextAction } from '../components/general/TextAction'
@@ -163,9 +165,7 @@ function LocalList({ packageId, focusSearch }: { packageId: string; focusSearch:
   const closeDetail = () => { setSelected(null); setPhotos([]); setEvent(null); setToken(''); setError(null); setStep('student') }
   const openScan = () => { Keyboard.dismiss(); closeDetail(); router.push(scanDestination(packageId)) }
   const openIncident = () => { Keyboard.dismiss(); closeDetail(); router.push({ pathname: '/offline/report-incident', params: { packageId } }) }
-  if (!r) return <Screen><Notice message="El almacén está bloqueado. Desbloquea el almacén protegido para consultar tu lista." />
-    <ActionButton label="Desbloquear mi lista" busy={offline.busy} onPress={() => { void offline.unlock() }} />
-    {offline.error && <Notice tone="error" message={offline.error} />}</Screen>
+  if (!r) return <Screen><OfflineAccessStatus loadingLabel="Abriendo tu lista" /></Screen>
   if (blocked && currentState) return <Screen><Notice message={currentState.state === 'VENCIDO' ? 'La lista venció. Prepara una copia vigente.'
     : currentState.state === 'INCOMPLETA' || currentState.state === 'DESCARGANDO' ? 'La preparación de esta lista está incompleta.'
       : currentState.state === 'DESACTUALIZADO' ? 'Esta copia ya no está autorizada para el control. Revisa su estado con conexión.'
@@ -180,6 +180,7 @@ function LocalList({ packageId, focusSearch }: { packageId: string; focusSearch:
   const rowsVisible = searchPageMatches(pageScope.current, r, term, searchTerm, offset)
   const heading = examHeading(p.manifest.exam)
   const count = p.manifest.students.length
+  const qrBlock = offlineQrBlock(p.manifest.qr)
   const refresh = { enabled: !loading && !busy && settled && !selected, refreshing: refreshing.current && loading,
     onRefresh() {
       if (refreshing.current || loading || work.current || !settled || selected) return
@@ -198,8 +199,8 @@ function LocalList({ packageId, focusSearch }: { packageId: string; focusSearch:
           </View>
         </View>
         <ActionButton label="Escanear QR" icon={<ExamIcon name="qr" color={theme.colors.onPrimary} />}
-          disabled={busy || refresh.refreshing || !p.manifest.qr.available} onPress={openScan} />
-        {!p.manifest.qr.available && <AppText variant="caption" style={s.muted}>QR no disponible para esta lista. Usa la búsqueda manual.</AppText>}
+           disabled={busy || refresh.refreshing || qrBlock !== null} onPress={openScan} />
+         {qrBlock && <AppText variant="caption" style={s.muted}>{qrBlock} Usa la búsqueda manual.</AppText>}
         <FormField ref={searchInput} label="Buscar por nombre, SIS o CI" placeholder="Buscar por nombre, SIS o CI" visibleLabel={false}
           value={term} maxLength={120} editable={!busy && !refresh.refreshing} autoCorrect={false} autoCapitalize="none"
           onChangeText={(value) => { setOffset(0); setTerm(value) }} returnKeyType="search" />
@@ -221,9 +222,9 @@ function LocalList({ packageId, focusSearch }: { packageId: string; focusSearch:
             onPress={() => setOffset(offset + 50)} /></View>
         </View>}
         {offset > 0 && <AppText variant="caption">Página {Math.floor(offset / 50) + 1}</AppText>}
-        {p.manifest.qr.available && <TextAction label={showExternal ? 'Ocultar lector externo' : 'Usar lector externo'} disabled={busy || loading || !settled}
+         {!qrBlock && <TextAction label={showExternal ? 'Ocultar lector externo' : 'Usar lector externo'} disabled={busy || loading || !settled}
           onPress={() => { setShowExternal(!showExternal); setToken('') }} />}
-        {p.manifest.qr.available && showExternal && <><FormField label="Contenido QR de un lector externo" value={token} maxLength={4096} editable={!busy && !loading && settled} onChangeText={setToken}
+         {!qrBlock && showExternal && <><FormField label="Contenido QR de un lector externo" value={token} maxLength={4096} editable={!busy && !loading && settled} onChangeText={setToken}
           autoCapitalize="none" autoCorrect={false} multiline hint="Este contenido no identifica a nadie hasta superar la verificación existente." />
         <ActionButton secondary label="Verificar QR e identificar" disabled={!token || busy || loading || !settled} onPress={() => { void action(async () => {
           const pkg = await r.repo.usable(packageId, await nativeClock.sample())

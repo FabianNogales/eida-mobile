@@ -54,5 +54,5 @@ export function offlineExamState(examId: number, unlocked: boolean,
 export function logoutConfirmation(summary: ReturnType<typeof pendingSummary>): string {
   const pending = summary ? `${summary.pending} operaciones por enviar y ${summary.attention} conflictos o rechazos en el almacén abierto.`
     : 'El almacén está bloqueado; no se puede comprobar cuántas operaciones quedan pendientes.'
-  return `${pending} Cerrar sesión no sincroniza ni elimina los eventos cifrados. Para acceder de nuevo deberás validar con internet la misma cuenta y desbloquear su almacén. ¿Cerrar sesión?`
+  return `${pending} Cerrar sesión no sincroniza ni elimina los eventos cifrados. Para acceder de nuevo, valida con internet la misma cuenta. ¿Cerrar sesión?`
 }

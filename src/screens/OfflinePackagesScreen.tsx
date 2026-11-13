@@ -9,8 +9,8 @@ import { EmptyState, LoadingState } from '../components/FeedbackStates'
 import { Notice } from '../components/Notice'
 import { PackageCard } from '../components/control/PackageCard'
 import { ProtectionDiagnostics } from '../components/control/ProtectionDiagnostics'
+import { OfflineAccessStatus } from '../components/control/OfflineAccessStatus'
 import { theme } from '../config/theme'
-import { offlineLabWarning, offlineProtection } from '../config/offlineLab'
 import { useOffline } from '../features/offline/OfflineProvider'
 import { useAuth } from '../features/auth/AuthProvider'
 import { listDestination } from '../ui/controlScreens'
@@ -23,17 +23,10 @@ export function OfflinePackagesScreen() {
   const summary = pendingSummary(offline.runtime !== null && !offline.busy, offline.syncItems, offline.incidentItems)
   return <Screen>
     <AppText variant="subtitle" accessibilityRole="header">Preparación y acceso sin conexión</AppText>
-    <AppText>{offlineProtection.laboratory
-      ? 'Tu lista se guarda cifrada en el almacén de laboratorio. Abrirla requiere una autorización local vigente.'
-      : 'Tu lista se guarda protegida en este dispositivo. Abrirla requiere biometría y una autorización local vigente.'}</AppText>
-    {offlineProtection.laboratory && <Notice tone="warning" message={offlineLabWarning} />}
-    {(offline.error || message) && <Notice tone="error" message={offline.error ?? message!} />}
+    <AppText>Tus listas se guardan cifradas en este dispositivo y se abren con una autorización vigente.</AppText>
+    {offline.runtime && (offline.error || message) && <Notice tone="error" message={offline.error ?? message!} />}
     {!offline.runtime ? <Card>
-      <AppText variant="subtitle">Almacén bloqueado</AppText>
-      <AppText>No se muestran listas, estudiantes ni cantidades personales hasta desbloquearlo.</AppText>
-      <ActionButton label="Desbloquear almacén protegido" busy={offline.busy} onPress={() => { void offline.unlock() }} />
-      <ProtectionDiagnostics />
-      <Notice tone="info" message="Una copia vigente puede consultarse sin validar primero la sesión remota. Si reiniciaste el teléfono o se cerró la concesión local, puede ser necesaria una nueva validación con internet de la cuenta original." />
+      <OfflineAccessStatus />
     </Card> : <>
       <Card>
         <AppText variant="subtitle" accessibilityRole="header">Colas protegidas</AppText>
@@ -51,8 +44,8 @@ export function OfflinePackagesScreen() {
         onOpen={() => router.push(listDestination(p.id))}
         onResume={() => { void offline.download(p.examId, p.id) }}
         onRevalidate={() => { void offline.download(p.examId, p.id) }} />)}
-      <ActionButton secondary label="Bloquear consulta local" onPress={() => localAction(offline.lock)} />
     </>}
+    <ProtectionDiagnostics />
     <AppText variant="caption">Un registro local es provisional. Solo los recibos del servidor confirman su aceptación; cerrar sesión no sincroniza ni elimina los eventos cifrados.</AppText>
   </Screen>
 }

@@ -9,6 +9,7 @@ import { StatusBadge } from '../components/StatusBadge'
 import { EmptyState, LoadingState } from '../components/FeedbackStates'
 import { Notice } from '../components/Notice'
 import { ProgressBar } from '../components/ProgressBar'
+import { OfflineAccessStatus } from '../components/control/OfflineAccessStatus'
 import { ChoiceChips } from '../components/operations/ChoiceChips'
 import { OperationDetails } from '../components/operations/OperationDetails'
 import { QueueRecordDetails, QueueRecordRow, QueueSegments, QueueSyncButton } from '../components/operations/QueueViews'
@@ -149,12 +150,7 @@ export function PendingQueues({ only, eventId, footer }: { only?: QueueKind; eve
       {session.status === 'offline' && <StatusBadge label="Sin conexión" tone="warning" />}
       {ownRun !== null && !checkingConnection && sameAccount && <StatusBadge label="Conexión comprobada" tone="success" />}
       {currentMessage && <Notice message={currentMessage} />}
-      {!runtime ? <Card>
-        <AppText variant="subtitle">Almacén protegido</AppText>
-        <AppText>Desbloquéalo para consultar tus registros.</AppText>
-        {offline.error && <Notice tone="error" message={offline.error} />}
-        <ActionButton label="Desbloquear almacén" busy={offline.busy} onPress={() => { void offline.unlock() }} />
-      </Card> : <>
+      {!runtime ? <OfflineAccessStatus loadingLabel="Abriendo registros pendientes" /> : <>
         <View style={s.toolbar}>
           <AppText variant="label" accessibilityRole="header">Registros recientes</AppText>
           {(kindRunning || (count !== null && count > 0)) &&

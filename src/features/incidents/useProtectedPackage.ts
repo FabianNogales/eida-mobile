@@ -6,7 +6,7 @@ import type { PackageRecord } from '../offline/contracts'
 import type { VaultRuntime } from '../offline/nativeVault'
 
 export function useProtectedPackage(packageId: string) {
-  const { runtime } = useOffline(), [focused, setFocused] = useState(false)
+  const { runtime, error: accessError } = useOffline(), [focused, setFocused] = useState(false)
   const [view, setView] = useState<{ runtime: VaultRuntime; p: PackageRecord } | null>(null)
   const [error, setError] = useState<string | null>(null)
   useFocusEffect(useCallback(() => { setFocused(true); return () => { setFocused(false); setView(null) } }, []))
@@ -27,7 +27,7 @@ export function useProtectedPackage(packageId: string) {
     return () => { current = false; if (timer) clearTimeout(timer) }
   }, [runtime, packageId, focused])
   if (!focused || !view || view.runtime !== runtime || view.p.id !== packageId) return {
-    runtime: null, pkg: null, error: !runtime ? 'Desbloquea el almacén con biometría.' : error,
+    runtime: null, pkg: null, error: !runtime ? accessError ?? 'La información local todavía no está disponible.' : error,
   }
   return { runtime: view.runtime, pkg: view.p, error }
 }

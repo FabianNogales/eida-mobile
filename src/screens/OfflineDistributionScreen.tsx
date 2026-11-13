@@ -16,7 +16,6 @@ import { ExamIcon } from '../components/general/ExamIcon'
 import { QueryFeedback } from '../components/general/QueryFeedback'
 import { TextAction } from '../components/general/TextAction'
 import { theme } from '../config/theme'
-import { offlineProtection } from '../config/offlineLab'
 import { useAuth } from '../features/auth/AuthProvider'
 import { useOffline } from '../features/offline/OfflineProvider'
 import { OfflineApi } from '../features/offline/api'
@@ -36,7 +35,7 @@ function DistributionView({ examId }: { examId: string }) {
   const { controller } = useAuth(), offline = useOffline(), router = useRouter()
   const [preparing, setPreparing] = useState(false), [prepareError, setPrepareError] = useState<string | null>(null)
   const [distribution, setDistribution] = useState(false), [actions, setActions] = useState(false)
-  const api = useCallback(() => new OfflineApi(controller!, offline.runtime?.digest ?? (() => { throw new Error('Desbloquea primero el almacén.')})), [controller, offline.runtime])
+  const api = useCallback(() => new OfflineApi(controller!, offline.runtime?.digest ?? (() => { throw new Error('No se pudo abrir la información local.')})), [controller, offline.runtime])
   const load = useCallback(async () => {
     const context = await api().context(examId).catch(async (error: unknown) => {
       if (error instanceof ApiError && error.status === 403 && offline.runtime) {
@@ -73,7 +72,6 @@ function DistributionView({ examId }: { examId: string }) {
     {offline.error && <Notice tone="error" message={offline.error} />}
     {c && view && <>
       <ExamHero exam={c.exam} relation={view.relation} />
-      {offlineProtection.laboratory && <Notice tone="warning" message="Laboratorio sin huella. Usa datos ficticios; los envíos llegan al servidor configurado." />}
       {c.stale && <Notice message="La distribución cambió. Tu lista requiere revisión antes de continuar." />}
       {c.unavailable_reason && <Notice tone="error" message="El servidor no permite preparar o abrir esta lista en su estado actual." />}
       <Card>
