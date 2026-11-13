@@ -95,7 +95,7 @@ export function examFeedRows(page: ExamPage, view: ExamView, now = Date.now()): 
     return { exam, start, rank }
   }).sort((a, b) => a.rank - b.rank ||
     (Number.isFinite(a.start) && Number.isFinite(b.start) ? (a.start - b.start) * (a.rank === 2 ? -1 : 1) || a.exam.id - b.exam.id
-      : Number.isFinite(b.start) - Number.isFinite(a.start))).map(({ exam }) => exam)
+      : Number(Number.isFinite(b.start)) - Number(Number.isFinite(a.start)))).map(({ exam }) => exam)
 }
 
 export function relevantControl(page: ExamPage | null, assignments: readonly Collaboration[] | null, now = Date.now()): HomeControl | null {

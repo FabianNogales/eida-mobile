@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Keyboard, StyleSheet, View } from 'react-native'
+import { Keyboard, StyleSheet, View } from 'react-native'
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import { Screen } from '../components/Screen'
 import { ListScreen } from '../components/ListScreen'
@@ -10,13 +10,19 @@ import { Notice } from '../components/Notice'
 import { FormField } from '../components/FormField'
 import type { TextInputHandle } from '../components/keyboardFocus'
 import { StudentRow } from '../components/control/StudentRow'
-import { StudentDetailModal } from '../components/control/StudentDetailModal'
+import { StudentDetailModal, type StudentStep } from '../components/control/StudentDetailModal'
+import { ExamIcon } from '../components/general/ExamIcon'
+import { TextAction } from '../components/general/TextAction'
+import { StatusBadge } from '../components/StatusBadge'
 import { theme } from '../config/theme'
 import { useOffline } from '../features/offline/OfflineProvider'
+import { useAuth } from '../features/auth/AuthProvider'
 import { nativeClock, anchoredNow } from '../features/offline/clock'
 import { captureProvisional, identifyQr } from '../features/offline/identity'
 import type { OfflineStudent, PackageRecord, ProvisionalEvent } from '../features/offline/contracts'
-import { packageViewAllowed, scanDestination, searchPageMatches } from '../ui/controlScreens'
+import { manualAvailability, packageViewAllowed, scanDestination, searchPageMatches } from '../ui/controlScreens'
+import { scanIssue } from '../ui/entryPresentation'
+import { briefExamStatus, examHeading } from '../ui/examPresentation'
 import { laPazInstant } from '../utils/dates'
 
 export function OfflineListScreen() {
@@ -25,10 +31,10 @@ export function OfflineListScreen() {
   return <LocalList key={packageId} packageId={packageId} focusSearch={params.focusSearch === '1'} />
 }
 function LocalList({ packageId, focusSearch }: { packageId: string; focusSearch: boolean }) {
-  const offline = useOffline(), router = useRouter(), r = offline.runtime
+  const offline = useOffline(), { session } = useAuth(), router = useRouter(), r = offline.runtime
   const viewScope = useRef(r), work = useRef(false), mounted = useRef(true)
   const pageScope = useRef<{ runtime: typeof r; term: string; offset: number } | null>(null)
-  const searchInput = useRef<TextInputHandle | null>(null), didFocus = useRef(false)
+  const searchInput = useRef<TextInputHandle | null>(null), refreshing = useRef(false)
   const currentState = offline.packages.find((item) => item.id === packageId)
   const blocked = !!currentState && (!currentState.active || currentState.state !== 'PREPARADO')
   const [p, setPackage] = useState<PackageRecord | null>(null), [term, setTerm] = useState(''), [offset, setOffset] = useState(0)
@@ -36,6 +42,9 @@ function LocalList({ packageId, focusSearch }: { packageId: string; focusSearch:
   const [students, setStudents] = useState<OfflineStudent[]>([]), [selected, setSelected] = useState<OfflineStudent | null>(null)
   const [photos, setPhotos] = useState<{ kind: string; uri: string }[]>([]), [event, setEvent] = useState<ProvisionalEvent | null>(null)
   const [error, setError] = useState<string | null>(null), [token, setToken] = useState(''), [busy, setBusy] = useState(false)
+  const [showExternal, setShowExternal] = useState(false), [step, setStep] = useState<StudentStep>('student')
+  const [method, setMethod] = useState<'MANUAL' | 'QR'>('MANUAL')
+  const [canRecord, setCanRecord] = useState(false)
   const [canDraft, setCanDraft] = useState(false)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   useEffect(() => {
@@ -49,7 +58,6 @@ function LocalList({ packageId, focusSearch }: { packageId: string; focusSearch:
     }).catch(() => {})
     return () => { current = false }
   }, [r, packageId, currentState]))
-  const receipt = offline.syncItems.find((item) => item.eventId === event?.event_id)?.receipt
   useEffect(() => {
     let current = true
     setLoading(true); setStudents([]); setSelected(null); setPhotos([]); setEvent(null); setToken(''); setError(null)
@@ -61,8 +69,8 @@ function LocalList({ packageId, focusSearch }: { packageId: string; focusSearch:
         setPackage(pkg); setStudents(rows)
       }
     })().catch((e) => { if (current) { setPackage(null); setError(e instanceof Error ? e.message : 'Consulta bloqueada.') } })
-      .finally(() => { if (current) setLoading(false) })
-    else setLoading(false)
+      .finally(() => { if (current) { refreshing.current = false; setLoading(false) } })
+    else { refreshing.current = false; setLoading(false) }
     return () => { current = false }
   }, [r, packageId, searchTerm, offset, revision, blocked])
   useEffect(() => {
@@ -83,12 +91,34 @@ function LocalList({ packageId, focusSearch }: { packageId: string; focusSearch:
     }).catch(clear)
     return () => { current = false; if (timer) clearTimeout(timer) }
   }, [p, r])
-  const visible = packageViewAllowed(p, packageId, viewScope.current === r, blocked)
   useEffect(() => {
-    if (!visible || !focusSearch || didFocus.current) return
-    const frame = requestAnimationFrame(() => { searchInput.current?.focus(); didFocus.current = true })
+    if (!selected || !p || !r || canRecord) return
+    let current = true, timer: ReturnType<typeof setTimeout> | undefined
+    const check = async () => {
+      try {
+        const sample = await nativeClock.sample()
+        const pkg = await r.repo.usable(packageId, sample)
+        if (!current) return
+        const now = anchoredNow(pkg.anchor, sample)
+        const wait = Date.parse(pkg.manifest.exam.entry_opens_at) - now
+        if (wait <= 0) setCanRecord(true)
+        else if (wait < Date.parse(pkg.manifest.expires_at) - now) {
+          timer = setTimeout(() => { void check() }, Math.min(wait, 2147483647))
+        }
+      } catch { /* The current copy or its clock could not be validated. */ }
+    }
+    void check()
+    return () => { current = false; if (timer) clearTimeout(timer) }
+  }, [selected, p, r, canRecord, packageId])
+  const visible = packageViewAllowed(p, packageId, viewScope.current === r, blocked)
+  useFocusEffect(useCallback(() => {
+    if (!visible || !focusSearch || !r) return
+    const frame = requestAnimationFrame(() => {
+      searchInput.current?.focus()
+      router.setParams({ focusSearch: '0' })
+    })
     return () => cancelAnimationFrame(frame)
-  }, [visible, focusSearch])
+  }, [visible, focusSearch, r, router]))
   const entries = useMemo(() => new Map(offline.syncItems.filter((item) => item.examId === p?.examId)
     .map((item) => [item.studentId, item] as const)), [offline.syncItems, p?.examId])
   const action = async (fn: () => Promise<void>) => {
@@ -97,89 +127,126 @@ function LocalList({ packageId, focusSearch }: { packageId: string; focusSearch:
     try { await fn() } catch (e) { if (mounted.current) setError(e instanceof Error ? e.message : 'Operación local bloqueada.') }
     finally { work.current = false; if (mounted.current) setBusy(false) }
   }
-  const show = async (student: OfflineStudent) => {
+  const show = async (student: OfflineStudent, identification: 'MANUAL' | 'QR' = 'MANUAL') => {
     if (!r) return
     const pkg = await r.repo.usable(packageId, await nativeClock.sample())
     const images: { kind: string; uri: string }[] = []
     const { Buffer } = await import('react-native-quick-crypto')
     for (const photo of student.photos) if (photo.state === 'PRESENT') {
       const bytes = await r.repo.photo(packageId, student.student_id, photo.kind)
-      if (!bytes || r.digest(bytes) !== photo.sha256) throw new Error('La fotografía local no pasó la comprobación de integridad.')
+      if (!bytes || bytes.length !== photo.size || r.digest(bytes) !== photo.sha256) throw new Error('No se pudo verificar la fotografía guardada.')
       images.push({ kind: photo.kind, uri: `data:${photo.mime};base64,${Buffer.from(bytes).toString('base64')}` })
     }
     const local = await r.repo.event(pkg.examId, student.student_id)
+    const sample = await nativeClock.sample()
+    const usable = await r.repo.usable(packageId, sample)
+    const opened = anchoredNow(usable.anchor, sample) >= Date.parse(usable.manifest.exam.entry_opens_at)
     r.check()
-    if (mounted.current) { Keyboard.dismiss(); setSelected(student); setPhotos(images); setEvent(local) }
+    if (mounted.current) {
+      Keyboard.dismiss()
+      setMethod(identification); setCanRecord(opened)
+      setStep(identification === 'QR' && !local && opened ? 'review' : 'student')
+      setSelected(student); setPhotos(images); setEvent(local)
+    }
   }
-  const capture = (method: 'MANUAL' | 'QR') => {
-    if (!r || !selected) return
-    Alert.alert('Registrar provisionalmente', 'Confirma la identidad y las fotos. El registro quedará PENDIENTE DE SINCRONIZACIÓN; el servidor decidirá su aceptación.', [
-      { text: 'Cancelar', style: 'cancel' }, { text: 'Guardar pendiente', onPress: () => { void action(async () => {
-        const result = await captureProvisional(r.repo, packageId, selected.student_id, method, await nativeClock.sample(), r.uuid, r.provider, token)
-        r.check(); if (mounted.current) { setEvent(result); setToken('') }
-        await offline.refresh()
-      }) } },
-    ])
+  const capture = () => {
+    if (!r || !selected || !visible || step !== 'review' || !canRecord ||
+      !manualAvailability(selected, !!event || entries.has(selected.student_id)).allowed) return
+    void action(async () => {
+      const result = await captureProvisional(r.repo, packageId, selected.student_id, method, await nativeClock.sample(), r.uuid, r.provider, token)
+      r.check()
+      const deliveryError = await offline.refresh().then(() => null, () => 'No se pudo consultar el estado de sincronización.')
+      r.check()
+      if (mounted.current) { setEvent(result); setToken(''); setPhotos([]); setError(deliveryError); setStep('result') }
+    })
   }
-  const closeDetail = () => { setSelected(null); setPhotos([]); setEvent(null); setToken('') }
+  const closeDetail = () => { setSelected(null); setPhotos([]); setEvent(null); setToken(''); setError(null); setStep('student') }
   const openScan = () => { Keyboard.dismiss(); closeDetail(); router.push(scanDestination(packageId)) }
   const openIncident = () => { Keyboard.dismiss(); closeDetail(); router.push({ pathname: '/offline/report-incident', params: { packageId } }) }
   if (!r) return <Screen><Notice message="El almacén está bloqueado. Desbloquea el almacén protegido para consultar tu lista." />
-    <ActionButton label="Ir al desbloqueo" onPress={() => router.replace('/offline')} /></Screen>
-  if (blocked && currentState) return <Screen><Notice message={`Consulta bloqueada: ${currentState.state}. Los eventos pendientes se conservan protegidos.`} />
+    <ActionButton label="Desbloquear mi lista" busy={offline.busy} onPress={() => { void offline.unlock() }} />
+    {offline.error && <Notice tone="error" message={offline.error} />}</Screen>
+  if (blocked && currentState) return <Screen><Notice message={currentState.state === 'VENCIDO' ? 'La lista venció. Prepara una copia vigente.'
+    : currentState.state === 'INCOMPLETA' || currentState.state === 'DESCARGANDO' ? 'La preparación de esta lista está incompleta.'
+      : currentState.state === 'DESACTUALIZADO' ? 'Esta copia ya no está autorizada para el control. Revisa su estado con conexión.'
+      : 'Esta copia requiere revisión antes de abrir la lista.'} />
     <ActionButton label="Ver paquetes y estado" onPress={() => router.replace('/offline')} /></Screen>
   if (!visible || !p) return <Screen>
-    {error ? <Notice tone="error" message={error} /> : <LoadingState label="Comprobando copia, vigencia y autorización local" />}
+    {error ? <Notice tone="error" message={error} /> : <LoadingState label="Comprobando tu lista" />}
     <ActionButton secondary label="Reintentar consulta local" disabled={loading} onPress={() => setRevision((v) => v + 1)} />
     <ActionButton secondary label="Ver paquetes y estado" onPress={() => router.push('/offline')} />
   </Screen>
   const settled = term === searchTerm
   const rowsVisible = searchPageMatches(pageScope.current, r, term, searchTerm, offset)
+  const heading = examHeading(p.manifest.exam)
+  const count = p.manifest.students.length
+  const refresh = { enabled: !loading && !busy && settled && !selected, refreshing: refreshing.current && loading,
+    onRefresh() {
+      if (refreshing.current || loading || work.current || !settled || selected) return
+      refreshing.current = true; setLoading(true); setRevision((value) => value + 1)
+    } }
   return <>
-    <ListScreen data={rowsVisible ? students : []} keyExtractor={(student) => student.student_id}
+    <ListScreen data={rowsVisible ? students : []} refresh={refresh} scrollKey={offset} keyExtractor={(student) => student.student_id}
       ListHeaderComponent={<View style={s.section}>
-        <AppText variant="subtitle" accessibilityRole="header">{p.manifest.exam.name}</AppText>
-        <AppText>{p.manifest.responsible_name} · Lista {p.manifest.list_id} · v{p.manifest.version}</AppText>
-        <AppText>{p.manifest.exam.room?.name ?? 'Ambiente no informado'} · {p.manifest.students.length} estudiantes en la copia</AppText>
-        <Notice message={`Datos conocidos al ${laPazInstant(p.manifest.prepared_at)}. Cambios y revocaciones posteriores pueden desconocerse. Vigencia: ${laPazInstant(p.manifest.expires_at)}.`} />
-        <FormField ref={searchInput} label="Buscar estudiante" hint="Nombre, apellidos, SIS o CI. %, _ y ! se buscan literalmente."
-          value={term} maxLength={120} editable={!busy} autoCorrect={false} autoCapitalize="none"
+        <View style={s.heading}>
+          <View style={s.copy}><AppText variant="subtitle" accessibilityRole="header">{heading.title}</AppText>
+            {heading.subtitle && <AppText variant="caption">{heading.subtitle}</AppText>}
+            <AppText variant="caption" style={s.muted}>{count} estudiantes en tu lista</AppText></View>
+          <View style={s.badges}>
+            {p.manifest.exam.status && <StatusBadge {...briefExamStatus(p.manifest.exam.status)} />}
+            {session.status === 'offline' && <StatusBadge label="Sin conexión" tone="warning" />}
+          </View>
+        </View>
+        <ActionButton label="Escanear QR" icon={<ExamIcon name="qr" color={theme.colors.onPrimary} />}
+          disabled={busy || refresh.refreshing || !p.manifest.qr.available} onPress={openScan} />
+        {!p.manifest.qr.available && <AppText variant="caption" style={s.muted}>QR no disponible para esta lista. Usa la búsqueda manual.</AppText>}
+        <FormField ref={searchInput} label="Buscar por nombre, SIS o CI" placeholder="Buscar por nombre, SIS o CI" visibleLabel={false}
+          value={term} maxLength={120} editable={!busy && !refresh.refreshing} autoCorrect={false} autoCapitalize="none"
           onChangeText={(value) => { setOffset(0); setTerm(value) }} returnKeyType="search" />
-        {error && <Notice tone="error" message={error} />}
-        {(loading || !settled || busy) && <LoadingState label={busy ? 'Comprobando identificación' : 'Buscando en tu lista local'} />}
+        <View style={s.heading}><AppText variant="label" accessibilityRole="header">Mi lista</AppText>
+          {rowsVisible && !loading && <AppText variant="caption" style={s.muted}>{students.length} en esta página</AppText>}
+        </View>
+        {error && !selected && <Notice tone="error" message={error} />}
+        {((loading && !refresh.refreshing) || !settled || (busy && !selected)) && <LoadingState label={busy ? 'Comprobando identidad' : 'Buscando en tu lista'} />}
       </View>}
-      renderItem={({ item }) => <StudentRow student={item} item={entries.get(item.student_id)} disabled={busy}
+      renderItem={({ item }) => <StudentRow student={item} item={entries.get(item.student_id)} disabled={busy || loading}
         onOpen={() => { void action(() => show(item)) }} />}
-      ListEmptyComponent={!loading && settled && !error ? <EmptyState title="Sin coincidencias"
-        message="Prueba otro nombre, SIS o CI dentro de tu lista autorizada. No se consultan estudiantes de otras listas." /> : undefined}
+      ListEmptyComponent={!loading && settled && !error ? <EmptyState title={count === 0 ? 'Tu lista está vacía' : 'Sin coincidencias'}
+        message={count === 0 ? 'La copia autorizada no contiene estudiantes.' : 'Prueba otro nombre, SIS o CI.'} /> : undefined}
       ListFooterComponent={<View style={s.section}>
-        <View style={s.pagination}>
+        {(offset > 0 || (rowsVisible && students.length === 50 && offset + 50 < count)) && <View style={s.pagination}>
           <View style={s.pageButton}><ActionButton secondary label="Página anterior" disabled={offset === 0 || busy || loading}
             onPress={() => setOffset(Math.max(0, offset - 50))} /></View>
-          <View style={s.pageButton}><ActionButton secondary label="Página siguiente" disabled={students.length < 50 || busy || loading || !settled}
+          <View style={s.pageButton}><ActionButton secondary label="Página siguiente" disabled={students.length < 50 || offset + 50 >= count || busy || loading || !settled}
             onPress={() => setOffset(offset + 50)} /></View>
-        </View>
-        <AppText variant="caption">Página local {Math.floor(offset / 50) + 1} · hasta 50 coincidencias por consulta</AppText>
-        <ActionButton label="Escanear QR" disabled={busy || !p.manifest.qr.available} onPress={openScan} />
-        <AppText>{p.manifest.qr.available ? 'QR v3 verificable con el material público de la copia. Las revocaciones posteriores pueden desconocerse.' : 'QR v3 no disponible. QR v2 no se autentica offline; utiliza la identificación manual.'}</AppText>
-        <FormField label="Contenido QR de un lector externo" value={token} maxLength={4096} editable={!busy} onChangeText={setToken}
+        </View>}
+        {offset > 0 && <AppText variant="caption">Página {Math.floor(offset / 50) + 1}</AppText>}
+        {p.manifest.qr.available && <TextAction label={showExternal ? 'Ocultar lector externo' : 'Usar lector externo'} disabled={busy || loading || !settled}
+          onPress={() => { setShowExternal(!showExternal); setToken('') }} />}
+        {p.manifest.qr.available && showExternal && <><FormField label="Contenido QR de un lector externo" value={token} maxLength={4096} editable={!busy && !loading && settled} onChangeText={setToken}
           autoCapitalize="none" autoCorrect={false} multiline hint="Este contenido no identifica a nadie hasta superar la verificación existente." />
-        <ActionButton secondary label="Verificar QR e identificar" disabled={!token || busy} onPress={() => { void action(async () => {
+        <ActionButton secondary label="Verificar QR e identificar" disabled={!token || busy || loading || !settled} onPress={() => { void action(async () => {
           const pkg = await r.repo.usable(packageId, await nativeClock.sample())
-          const result = await identifyQr(token, pkg, await nativeClock.sample(), r.provider)
-          const duplicate = await r.repo.event(pkg.examId, result.student.student_id)
-          if (duplicate) throw new Error('Duplicado local conocido: ya existe una operación pendiente para este estudiante.')
-          await show(result.student)
-        }) }} />
+          const result = await identifyQr(token, pkg, await nativeClock.sample(), r.provider).catch((cause: unknown) => {
+            throw new Error(scanIssue(cause instanceof Error ? cause.message : 'No se pudo leer el QR.'))
+          })
+          await show(result.student, 'QR')
+        }) }} /></>}
         <ActionButton secondary label="Reportar incidencia de esta lista" disabled={busy} onPress={openIncident} />
         {canDraft && <ActionButton secondary label="Preparar borrador de infracción · docente validado" disabled={busy}
           onPress={() => router.push({ pathname: '/offline/infraction-draft', params: { packageId } })} />}
         <ActionButton secondary label="Consultar sincronización y recibos" onPress={() => router.push('/offline/sync')} />
+        <AppText variant="caption" style={s.muted}>Copia del {laPazInstant(p.manifest.prepared_at)}. Vigente hasta {laPazInstant(p.manifest.expires_at)}. Puede haber cambios posteriores a la descarga.</AppText>
       </View>} />
-    {selected && <StudentDetailModal student={selected} record={p} photos={photos} event={event} receipt={receipt}
-      error={error} busy={busy} canQrRecord={!!token && p.manifest.qr.available} onClose={closeDetail}
-      onManual={() => capture('MANUAL')} onQrRecord={() => capture('QR')} onScan={openScan} onIncident={openIncident} />}
+    {selected && <StudentDetailModal student={selected} exam={heading.subtitle ? heading.title + ' · ' + heading.subtitle : heading.title}
+      photos={photos} event={event} item={entries.get(selected.student_id)} step={step}
+      error={error} busy={busy} canRecord={canRecord} method={method} onClose={closeDetail}
+      onBack={() => { if (step === 'review' && method === 'MANUAL') { setStep('student'); setError(null) } else closeDetail() }}
+      onReview={() => { setStep('review'); setError(null) }} onConfirm={capture} onIncident={openIncident} />}
   </>
 }
 const s = StyleSheet.create({ section: { gap: theme.spacing.md },
+  heading: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: theme.spacing.sm },
+  badges: { gap: theme.spacing.xs, maxWidth: '100%' },
+  copy: { flex: 1, gap: theme.spacing.xs }, muted: { color: theme.colors.muted },
   pagination: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.md }, pageButton: { flexBasis: 130, flexGrow: 1 } })

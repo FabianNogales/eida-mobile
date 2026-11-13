@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react'
 import { AppState, StyleSheet, View } from 'react-native'
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
+import { Stack, useFocusEffect, useLocalSearchParams, usePreventRemove, useRouter } from 'expo-router'
 import { Screen } from '../components/Screen'
 import { ActionButton } from '../components/ActionButton'
 import { Notice } from '../components/Notice'
-import { AppText } from '../components/AppText'
 import { Card } from '../components/Card'
 import { LoadingState } from '../components/FeedbackStates'
-import { OperationState } from '../components/operations/OperationState'
-import { ScanIdentityCard } from '../components/operations/ScanIdentityCard'
+import { EntryResult, EntryReview } from '../components/control/EntryReview'
+import { TextAction } from '../components/general/TextAction'
 import { theme } from '../config/theme'
 import { goBack } from '../navigation/back'
 import { listDestination } from '../ui/controlScreens'
-import { scanPresentation } from '../ui/operations'
+import { scanIssue } from '../ui/entryPresentation'
+import { examHeading } from '../ui/examPresentation'
 import { useOffline } from '../features/offline/OfflineProvider'
 import { nativeClock } from '../features/offline/clock'
 import { QrScanSession, type QrScanState } from '../features/scanner/scanSession'
@@ -28,6 +28,7 @@ export function OfflineScannerScreen() {
   const [granted, setGranted] = useState(false)
   const [Camera, setCamera] = useState<ComponentType<NativeQrCameraProps> | null>(null)
   const [cameraError, setCameraError] = useState<string | null>(null)
+  const started = useRef<QrScanSession | null>(null)
 
   useFocusEffect(useCallback(() => {
     setFocused(true)
@@ -69,65 +70,82 @@ export function OfflineScannerScreen() {
     setCameraError(null)
     void import('../features/scanner/NativeQrCamera').then((module) => {
       if (current) setCamera(() => module.NativeQrCamera)
-    }).catch(() => { if (current) setCameraError('La cámara no está disponible en esta instalación. Utiliza la consulta manual y solicita revisar la aplicación.') })
+    }).catch(() => { if (current) setCameraError('La cámara no está disponible. Puedes buscar al estudiante manualmente.') })
     return () => { current = false }
   }, [runtime, focused, foreground])
 
   const session = view?.session
+  usePreventRemove(!!runtime && view?.runtime === runtime && view?.state.phase === 'saving')
   const onAccess = useCallback((allowed: boolean) => { session?.cameraAccess(allowed); setGranted(allowed) }, [session])
   const onReady = useCallback((scanId: number) => session?.cameraReady(scanId), [session])
   const onDetection = useCallback((scanId: number, detection: Parameters<QrScanSession['detect']>[1]) => {
     if (session) void session.detect(scanId, detection)
   }, [session])
   const onFailure = useCallback((scanId: number) => session?.cameraFailed(scanId), [session])
+  useEffect(() => {
+    if (!session || session !== sessionRef.current || view?.state.phase !== 'idle' || !focused || !foreground ||
+        !Camera || !granted || cameraError || started.current === session) return
+    started.current = session
+    session.start()
+  }, [session, view?.state.phase, focused, foreground, Camera, granted, cameraError])
 
-  if (!runtime) return <Screen><Notice message="El almacén está bloqueado. Desbloquea el almacén protegido antes de escanear. Si el permiso de cámara interrumpió la aplicación, vuelve a desbloquearlo." />
-    <ActionButton label="Ir al desbloqueo" onPress={() => router.replace('/offline')} /></Screen>
-  if (!packageId) return <Screen><Notice message="Falta la referencia de la lista descargada." />
+  if (!packageId) return <Screen><Notice message="Abre el escáner desde una lista autorizada." />
     <ActionButton label="Ver paquetes" onPress={() => router.replace('/offline')} /></Screen>
-  if (!focused || !foreground || !view || view.runtime !== runtime || view.packageId !== packageId) return <Screen><AppText>Escáner detenido.</AppText></Screen>
+  if (!runtime) return <Screen><Notice message="La lista está protegida. Desbloquéala antes de escanear." />
+    <ActionButton label="Desbloquear mi lista" busy={offline.busy} onPress={() => { void offline.unlock() }} />
+    <TextAction label="Buscar manualmente" onPress={() => router.dismissTo(listDestination(packageId, true))} />
+    {offline.error && <Notice tone="error" message={offline.error} />}</Screen>
+  if (!focused || !foreground || !view || view.runtime !== runtime || view.packageId !== packageId) {
+    return <Screen><LoadingState label="Preparando escáner" /></Screen>
+  }
   const state = view.state
-  const identity = state.phase === 'review' || state.phase === 'duplicate' || state.phase === 'saved' ? state.identity : null
-  const event = state.phase === 'duplicate' || state.phase === 'saved' ? state.event : null
-  const receipt = event ? offline.syncItems.find((item) => item.eventId === event.event_id)?.receipt : null
-  const permitted = !['checking', 'blocked', 'closed'].includes(state.phase)
-  const canStart = ['idle', 'error', 'review', 'duplicate', 'saved'].includes(state.phase)
+  const close = () => { view.session.close(); goBack(router, listDestination(packageId)) }
+  const search = () => { view.session.close(); router.dismissTo(listDestination(packageId, true)) }
+  const result = state.phase === 'saved' || state.phase === 'duplicate' ? state : null
+  const reviewing = state.phase === 'review' || state.phase === 'saving'
+  const title = result ? 'Resultado del ingreso' : reviewing ? 'Revisar ingreso' : 'Escanear QR'
+  const exam = offline.packages.find((p) => p.id === packageId)?.manifest.exam
+  const heading = exam ? examHeading(exam) : null
+  const examName = heading ? [heading.title, heading.subtitle].filter(Boolean).join(' · ') : 'Examen de tu lista'
+  const cameraActive = state.phase === 'idle' || state.phase === 'scanning' || state.phase === 'error'
+  const showPreview = state.phase === 'scanning' || (cameraActive && !granted)
   return <Screen>
-    <AppText variant="subtitle" accessibilityRole="header">Lectura segura de identidad</AppText>
-    <AppText>Enfoca un único QR. La lectura se pausa para verificarlo; detectar un código no registra un ingreso.</AppText>
-    <OperationState {...scanPresentation(state)} />
-    {state.phase === 'checking' && <LoadingState label="Comprobando acceso al paquete" />}
-    {(state.phase === 'error' || state.phase === 'blocked') && <Notice tone="error" message={state.message} />}
-    {permitted && <>
-      <Card>
-        <View style={s.camera}>
-          {!Camera && !cameraError && <LoadingState label="Preparando cámara nativa" />}
-          {cameraError ? <Notice tone="error" message={cameraError} /> : Camera && <Camera scanId={state.phase === 'scanning' ? state.scanId : null}
+    <Stack.Screen options={{ title, headerBackVisible: state.phase !== 'saving', gestureEnabled: state.phase !== 'saving' }} />
+    {state.phase === 'checking' && <LoadingState label="Comprobando tu lista" />}
+    {(state.phase === 'error' || state.phase === 'blocked') && <Notice tone="error" message={scanIssue(state.message)} />}
+    <Card style={showPreview ? s.panel : s.hidden}>
+      <View style={s.camera} importantForAccessibility={showPreview ? 'auto' : 'no-hide-descendants'}>
+        {showPreview && !Camera && !cameraError && <LoadingState label="Preparando cámara" />}
+        {showPreview && cameraError && <Notice tone="error" message={cameraError} />}
+        {Camera && !cameraError && !['checking', 'blocked', 'closed'].includes(state.phase) &&
+          <Camera scanId={state.phase === 'scanning' ? state.scanId : null}
             onAccess={onAccess} onReady={onReady} onDetection={onDetection} onFailure={onFailure} />}
-          {granted && state.phase === 'scanning' && !cameraError && <View pointerEvents="none" accessible={false}
-            importantForAccessibility="no-hide-descendants" style={s.guide} />}
-        </View>
-        {canStart && <ActionButton label={state.phase === 'idle' ? 'Iniciar escaneo' : 'Escanear otro código'}
-          disabled={!Camera || !granted || !!cameraError} onPress={() => { view.session.start() }} />}
-      </Card>
-      {(state.phase === 'detected' || state.phase === 'verifying') && <LoadingState label="Verificando firma, vigencia, examen y pertenencia a tu lista" />}
-      {state.phase === 'saving' && <LoadingState label="Guardando evidencia provisional" />}
-      {identity && <ScanIdentityCard identity={identity}
-        examName={offline.packages.find((p) => p.id === packageId)?.manifest.exam.name ?? 'Examen del paquete autorizado'}
-        review={state.phase === 'review'} event={event} receipt={receipt}
-        onCancel={() => view.session.cancel()} onConfirm={() => {
-          void view.session.confirm().then((saved) => { if (saved) void offline.refresh().catch(() => {}) })
-        }} />}
-      {state.phase === 'duplicate' && <Notice message="Ya existe una operación local. Se conservan su UUID y evidencia; no se crea otro evento." />}
-      {!['idle', 'saving', 'review'].includes(state.phase) && <ActionButton secondary label="Cancelar lectura" onPress={() => view.session.cancel()} />}
+        {granted && state.phase === 'scanning' && !cameraError && <View pointerEvents="none" accessible={false}
+          importantForAccessibility="no-hide-descendants" style={s.guide} />}
+      </View>
+    </Card>
+    {cameraActive && state.phase !== 'scanning' && !!Camera && granted && !cameraError &&
+      <ActionButton label={state.phase === 'error' ? 'Reintentar escaneo' : 'Iniciar escaneo'} onPress={() => { view.session.start() }} />}
+    {(state.phase === 'detected' || state.phase === 'verifying') && <LoadingState label="Verificando QR" />}
+    {state.phase === 'saving' && <LoadingState label="Guardando ingreso" />}
+    {state.phase === 'review' && <EntryReview student={state.identity.student} photos={state.identity.photos} exam={examName}
+      method="QR" onCancel={close} onConfirm={() => {
+        void view.session.confirm().then((saved) => { if (saved) void offline.refresh().catch(() => {}) })
+      }} />}
+    {result && <>
+      <EntryResult event={result.event} item={offline.syncItems.find((row) => row.eventId === result.event.event_id)}
+        duplicate={result.phase === 'duplicate'} onContinue={close} />
+      {granted && <TextAction label="Escanear otro QR" onPress={() => { view.session.start() }} />}
     </>}
-    <Notice tone="info" message="QR v2 no se autentica offline. Puedes usar la consulta manual. Las revocaciones posteriores a la descarga pueden desconocerse." />
-    <ActionButton secondary label="Volver al origen" disabled={state.phase === 'saving'} onPress={() => {
-      view.session.close(); goBack(router, listDestination(packageId))
-    }} />
+    {!result && !reviewing && <>
+      <ActionButton secondary label="Buscar manualmente" onPress={search} />
+      <TextAction label="Cancelar" onPress={close} />
+    </>}
   </Screen>
 }
 const s = StyleSheet.create({
+  panel: { padding: theme.spacing.md },
+  hidden: { display: 'none' },
   camera: { position: 'relative', gap: theme.spacing.md },
   // The unchanged native adapter renders a 300 dp preview. This decorative guide
   // sits inside that preview; it is never a detection/cropping constraint.

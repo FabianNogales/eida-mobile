@@ -21,7 +21,8 @@ const assignment: Collaboration = { exam_id: 43, exam_name: 'Parcial asignado', 
   exam_date: '2030-01-02', start_time: '10:00:00', duration_minutes: 90, room: null }
 function record(overrides: Partial<PackageRecord> = {}): PackageRecord {
   const m = manifest()
-  return { id: packageId, examId: m.exam_id, state: 'PREPARADO', active: true, manifest: m, envelope: envelope(m), anchor, ...overrides }
+  return { id: packageId, examId: m.exam_id, state: 'PREPARADO', active: true, manifest: m, envelope: envelope(m), anchor,
+    ...overrides, error: overrides.error ?? null }
 }
 function context(overrides: Partial<DistributionContext> = {}): DistributionContext {
   return { exam: manifest().exam, can_prepare: true, unavailable_reason: null, distribution_id: '1', version: 1,

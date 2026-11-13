@@ -27,7 +27,7 @@ const s = StyleSheet.create({
   pagination: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.md,
     backgroundColor: theme.colors.surface, borderTopWidth: 1, borderColor: theme.colors.border },
   arrow: { minWidth: theme.layout.minTouch, minHeight: theme.layout.minTouch,
-    alignItems: 'center', justifyContent: 'center', borderRadius: theme.radius.sm },
+    alignItems: 'center', justifyContent: 'center', borderRadius: theme.radius.small },
   pressed: { backgroundColor: theme.colors.background },
   back: { transform: [{ rotate: '180deg' }] },
 })

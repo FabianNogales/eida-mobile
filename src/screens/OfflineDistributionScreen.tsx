@@ -35,7 +35,6 @@ export function OfflineDistributionScreen() {
 function DistributionView({ examId }: { examId: string }) {
   const { controller } = useAuth(), offline = useOffline(), router = useRouter()
   const [preparing, setPreparing] = useState(false), [prepareError, setPrepareError] = useState<string | null>(null)
-  const [downloading, setDownloading] = useState(false)
   const [distribution, setDistribution] = useState(false), [actions, setActions] = useState(false)
   const api = useCallback(() => new OfflineApi(controller!, offline.runtime?.digest ?? (() => { throw new Error('Desbloquea primero el almacén.')})), [controller, offline.runtime])
   const load = useCallback(async () => {
@@ -63,15 +62,11 @@ function DistributionView({ examId }: { examId: string }) {
     return permission
   }, [controller, examId, c])
   const permissions = useRemoteQuery(loadPermissions)
-  const refresh = usePrivateRefresh(query.reload, query.loading || permissions.loading || preparing || downloading || offline.busy)
+  const refresh = usePrivateRefresh(query.reload, query.loading || permissions.loading || preparing || offline.busy)
   const view = c ? detailPresentation(c, offline.packages, offline.runtime !== null,
     !!controller?.offlineBinding(), offline.busy) : null
   const extras = examExtraActions(c?.exam.id ?? 0, permissions.loading || permissions.error ? null : permissions.data)
   const local = view?.local, latest = view?.latest
-  const download = async () => {
-    setDownloading(true)
-    try { await offline.download(examId) } finally { setDownloading(false) }
-  }
   return <Screen refresh={refresh}>
     <QueryFeedback loading={query.loading && !refresh.refreshing} error={query.error} label="Consultando examen" retry={refresh.onRefresh} />
     {prepareError && <Notice tone="error" message={prepareError} />}
@@ -88,18 +83,18 @@ function DistributionView({ examId }: { examId: string }) {
           {c.own_list_id && <AppText variant="caption" style={s.muted}>Lista {c.own_list_id}</AppText>}
         </View><View style={s.download}><ExamIcon name="download" /></View></View>
         {!c.own_list_id ? <AppText>{view.access.supervise ? 'Supervisión sin lista personal.' : 'Aún no tienes una lista asignada.'}</AppText>
-          : offline.runtime || downloading ? <PreparationStatus state={downloading ? 'DESCARGANDO' : latest?.state ?? 'NO_DESCARGADO'} active={latest?.active} />
+          : offline.runtime ? <PreparationStatus state={latest?.state ?? 'NO_DESCARGADO'} active={latest?.active} />
             : <StatusBadge label="Preparación por consultar" />}
         {local && latest && local.id !== latest.id && <AppText variant="caption" style={s.muted}>Tu lista anterior sigue disponible mientras termina la preparación.</AppText>}
       </Card>
       {c.own_list_id && <>
-        <ActionButton label="Controlar ingreso" icon={<ExamIcon name="qr" color={view.control && !downloading ? theme.colors.onPrimary : theme.colors.muted} />}
-          disabled={!view.control || downloading} onPress={() => {
+        <ActionButton label="Controlar ingreso" icon={<ExamIcon name="qr" color={view.control ? theme.colors.onPrimary : theme.colors.muted} />}
+          disabled={!view.control} onPress={() => {
           if (view.control && local) router.push(listDestination(local.id))
         }} />
-        <ActionButton secondary label={local ? 'Actualizar lista offline' : 'Preparar lista offline'} busy={downloading}
-          disabled={!view.prepareOffline} onPress={() => { void download() }} />
-        {!offline.runtime && <ActionButton secondary label="Desbloquear mi lista" busy={offline.busy} onPress={() => { void offline.unlock() }} />}
+        <ActionButton secondary label={local ? 'Ver preparación offline' : 'Preparar lista offline'}
+          disabled={offline.busy || c.stale || !!c.unavailable_reason}
+          onPress={() => router.push({ pathname: '/(private)/prepare-offline', params: { examId } })} />
         {!local && <AppText variant="caption" style={s.muted}>Prepara tu lista para controlar ingresos sin internet.</AppText>}
       </>}
       {!c.own_list_id && <EmptyState title={view.access.supervise ? 'Puedes supervisar la distribución' : 'Sin lista personal'}

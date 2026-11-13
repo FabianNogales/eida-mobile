@@ -3,19 +3,19 @@ import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-na
 import { theme } from '../config/theme'
 import { KeyboardFocusContext, type TextInputHandle } from './keyboardFocus'
 
-export interface FormFieldProps extends TextInputProps { label: string; error?: string | null; hint?: string; trailing?: ReactNode }
+export interface FormFieldProps extends TextInputProps { label: string; error?: string | null; hint?: string; trailing?: ReactNode; visibleLabel?: boolean }
 export const FormField = forwardRef<TextInputHandle, FormFieldProps>(function FormField({ label, error, hint, style,
-  onFocus, onBlur, multiline, accessibilityLabel, accessibilityHint, trailing, ...props }, forwarded) {
+  onFocus, onBlur, multiline, accessibilityLabel, accessibilityHint, trailing, visibleLabel = true, ...props }, forwarded) {
   const input = useRef<TextInputHandle | null>(null), focus = useContext(KeyboardFocusContext), labelId = useId()
   const nativeInput = <TextInput {...props} ref={(instance) => { input.current = instance; if (typeof forwarded === 'function') forwarded(instance); else if (forwarded) forwarded.current = instance }}
-      accessibilityLabel={accessibilityLabel ?? label} accessibilityLabelledBy={labelId}
+      accessibilityLabel={accessibilityLabel ?? label} accessibilityLabelledBy={visibleLabel ? labelId : undefined}
       accessibilityHint={[accessibilityHint ?? hint, error ? `Error: ${error}` : null].filter(Boolean).join('. ') || undefined}
       placeholderTextColor={theme.colors.muted} selectionColor={theme.colors.primary}
       multiline={multiline} style={[styles.input, trailing ? styles.withTrailing : undefined, multiline && styles.multiline, error && styles.invalid, style]}
       onFocus={(event) => { focus.focus(input.current); onFocus?.(event) }}
       onBlur={(event) => { focus.blur(input.current); onBlur?.(event) }} />
   return <View style={styles.field}>
-    <Text nativeID={labelId} style={styles.label}>{label}</Text>
+    {visibleLabel && <Text nativeID={labelId} style={styles.label}>{label}</Text>}
     {trailing ? <View style={styles.inputRow}>{nativeInput}<View style={styles.trailing}>{trailing}</View></View> : nativeInput}
     {error ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text> :
       hint ? <Text style={styles.hint}>{hint}</Text> : null}

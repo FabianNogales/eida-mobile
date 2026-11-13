@@ -1,8 +1,9 @@
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import { theme } from '../../config/theme'
 import { MainTabIcon } from '../MainTabIcon'
 
 export type ExamIconName = 'calendar' | 'clock' | 'person' | 'place' | 'chevron' | 'download' | 'list' | 'qr' | 'alert' | 'shield' | 'eye' | 'eye-off'
+  | 'wifi' | 'help' | 'info' | 'logout'
 export function ExamIcon({ name, color = theme.colors.primary }: { name: ExamIconName; color?: string }) {
   if (name === 'calendar' || name === 'clock' || name === 'person') {
     return <MainTabIcon name={name === 'calendar' ? 'exams' : name === 'clock' ? 'pending' : 'profile'} color={color} />
@@ -16,11 +17,29 @@ export function ExamIcon({ name, color = theme.colors.primary }: { name: ExamIco
     {name === 'qr' && <><View style={[s.qrBox, { top: 3, left: 3 }, line]} /><View style={[s.qrBox, { top: 3, right: 3 }, line]} /><View style={[s.qrBox, { bottom: 3, left: 3 }, line]} /><View style={[s.qrBox, { bottom: 3, right: 3, borderWidth: 3 }, line]} /></>}
     {name === 'alert' && <><View style={[s.alert, line]} /><View style={[s.shaft, { height: 7, top: 6 }, line]} /><View style={[s.dot, { backgroundColor: color }]} /></>}
     {name === 'shield' && <><View style={[s.shield, line]} /><View style={[s.check, line]} /></>}
+    {name === 'wifi' && <>
+      <View style={[s.wifiArc, line]} /><View style={[s.wifiArc, s.wifiInner, line]} />
+      <View style={[s.wifiDot, { backgroundColor: color }]} />
+    </>}
+    {(name === 'help' || name === 'info') && <View style={[s.circle, { borderColor: color }]}>
+      <Text allowFontScaling={false} style={[s.symbol, { color }]}>{name === 'help' ? '?' : 'i'}</Text>
+    </View>}
+    {name === 'logout' && <>
+      <View style={[s.door, line]} /><View style={[s.exitLine, line]} /><View style={[s.exitArrow, line]} />
+    </>}
     {(name === 'eye' || name === 'eye-off') && <><View style={[s.eye, line]} /><View style={[s.pupil, line]} />{name === 'eye-off' && <View style={[s.slash, line]} />}</>}
   </View>
 }
 const s = StyleSheet.create({
   icon: { width: 24, height: 24, flexShrink: 0 },
+  wifiArc: { width: 18, height: 10, top: 6, left: 3, borderTopWidth: 2, borderTopLeftRadius: 10, borderTopRightRadius: 10 },
+  wifiInner: { width: 10, top: 10, left: 7 },
+  wifiDot: { position: 'absolute', width: 3, height: 3, borderRadius: 2, left: 10.5, top: 15 },
+  circle: { width: 18, height: 18, margin: 3, borderWidth: 1.5, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  symbol: { fontSize: 12, fontWeight: '700', includeFontPadding: false },
+  door: { width: 9, height: 16, top: 4, left: 4, borderWidth: 1.5, borderRightWidth: 0, borderRadius: 2 },
+  exitLine: { width: 10, borderTopWidth: 2, top: 11, left: 9 },
+  exitArrow: { width: 6, height: 6, borderRightWidth: 2, borderTopWidth: 2, top: 9, left: 14, transform: [{ rotate: '45deg' }] },
   chevron: { width: 8, height: 8, borderRightWidth: 2, borderTopWidth: 2, transform: [{ rotate: '45deg' }], left: 6, top: 8 },
   pin: { width: 15, height: 18, borderWidth: 2, borderRadius: 10, left: 4.5, top: 2 },
   pinDot: { width: 5, height: 5, borderWidth: 1.5, borderRadius: 3, left: 9.5, top: 7 },

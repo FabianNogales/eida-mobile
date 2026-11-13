@@ -8,7 +8,6 @@ import ts from 'typescript'
 import type { ChoiceChips } from '../src/components/operations/ChoiceChips'
 import { theme } from '../src/config/theme'
 import { incidentTypes, infractionTypes, type InfractionType } from '../src/features/incidents/contracts'
-import { queueKnown } from '../src/ui/operations'
 
 // Read the real JSX guards without mounting screens or opening native services.
 // These are source-level presentation checks, not an Android/FlatList renderer.
@@ -74,15 +73,13 @@ test('local search does not show an empty result before settling, during loading
   ]) assert.equal(empty(scope), false)
 })
 
-test('offline queues hide their empty slots while locked or awaiting their first protected read', () => {
-  const runtime = {}, otherRuntime = {}
+test('all queue entry points use an empty slot only after a successful protected read', () => {
+  const empty = listSlot('PendingOverviewScreen', 'ListEmptyComponent')
+  assert.equal(empty({ records: null }), false)
+  assert.equal(empty({ records: [] }), true)
   for (const screen of ['OfflineIncidentsScreen', 'OfflineSyncScreen']) {
-    const empty = listSlot(screen, 'ListEmptyComponent')
-    assert.equal(empty({ known: queueKnown(null, runtime, false) }), false)
-    assert.equal(empty({ known: queueKnown(runtime, null, true) }), false)
-    assert.equal(empty({ known: queueKnown(runtime, otherRuntime, true) }), false)
-    assert.equal(empty({ known: queueKnown(runtime, runtime, false) }), true)
-    assert.equal(empty({ known: queueKnown(runtime, runtime, true) }), true)
+    const source = readFileSync(new URL(`../src/screens/${screen}.tsx`, import.meta.url), 'utf8')
+    assert.match(source, /<PendingQueues only=/)
   }
 })
 

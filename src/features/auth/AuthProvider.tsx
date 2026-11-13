@@ -32,7 +32,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     void controller?.restore()
-    let previous: string | null = AppState.currentState
+    let previous = AppState.currentState ?? null
     const subscription = AppState.addEventListener('change', (state) => {
       const restore = controller && shouldRestoreOnResume(previous, state, controller.getSnapshot())
       previous = nextResumeState(previous, state)
