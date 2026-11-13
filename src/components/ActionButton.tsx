@@ -1,9 +1,10 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native'
+import type { ReactNode } from 'react'
 import { theme } from '../config/theme'
 import { buttonColors, type ButtonVariant } from '../ui/presentation'
 
-export function ActionButton({ label, onPress, busy = false, secondary = false, disabled = false, variant, accessibilityHint }: {
-  label: string; onPress: () => void; busy?: boolean; secondary?: boolean; disabled?: boolean; variant?: ButtonVariant; accessibilityHint?: string
+export function ActionButton({ label, onPress, busy = false, secondary = false, disabled = false, variant, accessibilityHint, icon }: {
+  label: string; onPress: () => void; busy?: boolean; secondary?: boolean; disabled?: boolean; variant?: ButtonVariant; accessibilityHint?: string; icon?: ReactNode
 }) {
   const kind = variant ?? (secondary ? 'secondary' : 'primary'), colors = buttonColors(kind, disabled, false)
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityHint={accessibilityHint}
@@ -13,6 +14,7 @@ export function ActionButton({ label, onPress, busy = false, secondary = false, 
       return [styles.button, { backgroundColor: current.background, borderColor: current.border }]
     }}>
     {busy && <ActivityIndicator color={colors.foreground} importantForAccessibility="no" />}
+    {!busy && icon}
     <Text style={[styles.label, { color: colors.foreground }]}>{busy ? `${label} · En curso` : label}</Text>
   </Pressable>
 }

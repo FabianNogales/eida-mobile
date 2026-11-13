@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import { ListScreen } from '../components/ListScreen'
@@ -16,44 +16,49 @@ import { theme } from '../config/theme'
 import { useAuth } from '../features/auth/AuthProvider'
 import { useOffline } from '../features/offline/OfflineProvider'
 import { incidentTypes, infractionTypes, type IncidentState } from '../features/incidents/contracts'
-import type { InfractionDraft } from '../features/incidents/repository'
 import { incidentDelivery, incidentLabels, incidentStates } from '../ui/operations'
-import { useQueueReadiness } from '../ui/useQueueReadiness'
+import { useScreenRefresh } from '../hooks/useScreenRefresh'
+import { useRemoteQuery } from '../hooks/useRemoteQuery'
 import { laPazInstant } from '../utils/dates'
 
 export function OfflineIncidentsScreen() {
   const offline = useOffline(), r = offline.runtime, { controller } = useAuth(), router = useRouter()
-  const params = useLocalSearchParams<{ eventId?: string }>(), known = useQueueReadiness(r, offline.busy)
-  const [focused, setFocused] = useState(false), [drafts, setDrafts] = useState<{ runtime: typeof r; items: InfractionDraft[] } | null>(null)
-  const [draftError, setDraftError] = useState<string | null>(null), [revision, setRevision] = useState(0)
+  const params = useLocalSearchParams<{ eventId?: string }>()
+  const [focused, setFocused] = useState(false)
   const [filter, setFilter] = useState<IncidentState | 'ALL'>('ALL')
   const [selected, setSelected] = useState<{ runtime: typeof r; id: string } | null>(null)
-  useFocusEffect(useCallback(() => { setFocused(true); return () => { setFocused(false); setDrafts(null); setSelected(null) } }, []))
-  useEffect(() => {
-    let current = true; setDrafts(null); setDraftError(null)
-    if (r && focused) void r.incidents.drafts().then((items) => { r.check(); if (current) setDrafts({ runtime: r, items }) })
-      .catch(() => { if (current) setDraftError('No se pudieron consultar los borradores protegidos. No se presentan como una lista vacía.') })
-    return () => { current = false }
-  }, [r, focused, revision])
-  if (!r) return <Screen><Notice message="Desbloquea el almacén con biometría. Las incidencias pendientes siguen cifradas." />
+  useFocusEffect(useCallback(() => { setFocused(true); return () => { setFocused(false); setSelected(null) } }, []))
+  // Re-read after the provider publishes an updated delivery snapshot.
+  const deliveryItems = offline.incidentItems
+  const loadLocal = useCallback(async () => {
+    if (!r || !focused) return null
+    const [drafts, items] = await Promise.allSettled([r.incidents.drafts(), r.incidents.items()])
+    r.check()
+    return { drafts, items }
+  }, [r, focused, deliveryItems])
+  const query = useRemoteQuery(loadLocal)
+  const refresh = useScreenRefresh(query.reload, !!r && focused && !offline.busy && !query.loading && !selected)
+  const reports = query.data?.items.status === 'fulfilled' ? query.data.items.value : null
+  const drafts = query.data?.drafts.status === 'fulfilled' ? query.data.drafts.value : null
+  const localError = query.error || query.data?.items.status === 'rejected' || query.data?.drafts.status === 'rejected'
+  const known = reports !== null
+  if (!r) return <Screen><Notice message="Desbloquea el almacén protegido. Las incidencias pendientes siguen cifradas." />
     <ActionButton label="Ir al desbloqueo" onPress={() => router.replace('/offline')} /></Screen>
   if (!focused) return <Screen><AppText>Consulta detenida.</AppText></Screen>
-  const scopedItems = offline.incidentItems.filter((item) => !params.eventId || item.event.event_id === params.eventId)
+  const scopedItems = (reports ?? []).filter((item) => !params.eventId || item.event.event_id === params.eventId)
   const items = known ? scopedItems.filter((item) => filter === 'ALL' || item.state === filter) : []
-  const item = known && selected && selected.runtime === r ? offline.incidentItems.find((row) => row.event.event_id === selected.id) : null
+  const item = selected && selected.runtime === r ? reports?.find((row) => row.event.event_id === selected.id) : null
   const options: { value: IncidentState | 'ALL'; label: string }[] = [{ value: 'ALL', label: `Todos (${scopedItems.length})` },
     ...incidentStates.map((state) => ({ value: state, label: `${incidentLabels[state].label} (${scopedItems.filter((i) => i.state === state).length})` }))]
   return <>
-    <ListScreen data={items} keyExtractor={(row) => row.event.event_id} ListHeaderComponent={<View style={s.section}>
+    <ListScreen data={items} refresh={refresh} keyExtractor={(row) => row.event.event_id} ListHeaderComponent={<View style={s.section}>
       <AppText variant="subtitle" accessibilityRole="header">Incidencias y borradores protegidos</AppText>
       <Notice tone="info" message="Un reporte no confirma una infracción ni aplica sanciones. Esta cola es independiente de los ingresos HU37." />
       {offline.error && <Notice tone="error" message={offline.error} />}
       {!controller?.offlineBinding() && <Notice message="Para enviar valida con internet la cuenta y dispositivo originales." />}
       <ActionButton label="Sincronizar incidencias" busy={offline.busy} disabled={!controller?.offlineBinding()} onPress={() => { void offline.synchronizeIncidents() }} />
-      <ActionButton secondary label="Actualizar estados y borradores" disabled={offline.busy} onPress={() => {
-        setRevision((value) => value + 1); void offline.refresh().catch(() => {})
-      }} />
-      {known ? <ChoiceChips options={options} value={filter} onChange={setFilter} /> : <LoadingState label="Leyendo incidencias autorizadas" />}
+      {known ? <ChoiceChips options={options} value={filter} onChange={setFilter} />
+        : query.loading && !refresh.refreshing && <LoadingState label="Leyendo incidencias autorizadas" />}
     </View>} renderItem={({ item: row }) => <Card>
       <OperationState {...incidentDelivery(row)} />
       <AppText variant="subtitle">{incidentTypes.find((type) => type.value === row.event.type)?.label}</AppText>
@@ -61,12 +66,12 @@ export function OfflineIncidentsScreen() {
       <ActionButton secondary label="Ver reporte y resultado" onPress={() => setSelected({ runtime: r, id: row.event.event_id })} />
     </Card>} ListEmptyComponent={known ? <EmptyState title="Sin reportes en esta vista" message="Los conflictos y rechazos se conservan en sus filtros." /> : undefined}
       ListFooterComponent={<View style={s.section}>
-        {draftError && <Notice tone="error" message={draftError} />}
-        {!drafts && !draftError && <LoadingState label="Consultando borradores protegidos" />}
-        {drafts?.runtime === r && !params.eventId && <>
+        {localError && <><Notice tone="error" message="No se pudo completar la consulta local de incidencias y borradores." />
+          <ActionButton secondary label="Reintentar consulta local" onPress={refresh.onRefresh} disabled={offline.busy} /></>}
+        {drafts && !params.eventId && <>
           <AppText variant="subtitle" accessibilityRole="header">Borradores de infracción</AppText>
-          {drafts.items.length === 0 && <AppText>No hay borradores en la consulta local actual.</AppText>}
-          {drafts.items.map((draft) => <Card key={draft.id}>
+          {drafts.length === 0 && <AppText>No hay borradores en la consulta local actual.</AppText>}
+          {drafts.map((draft) => <Card key={draft.id}>
             <OperationState label="Borrador local · sin envío automático" icon="…" tone="warning" />
             <AppText variant="subtitle">{infractionTypes.find((type) => type.value === draft.type)?.label}</AppText>
             <AppText>{draft.description}</AppText><AppText>Examen {draft.examId} · estudiante {draft.studentId} · {laPazInstant(draft.capturedAt)}</AppText>

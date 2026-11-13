@@ -3,11 +3,13 @@ import { Alert, Text, View } from 'react-native'
 import { Screen } from '../components/Screen'
 import { ActionButton } from '../components/ActionButton'
 import { Notice } from '../components/Notice'
-import { EmptyState, LoadingState } from '../components/FeedbackStates'
+import { EmptyState } from '../components/FeedbackStates'
+import { QueryFeedback } from '../components/general/QueryFeedback'
 import { contentStyles as s } from '../components/contentStyles'
 import { useAuth } from '../features/auth/AuthProvider'
 import { devices, revokeDevice } from '../features/exams/api'
 import { useRemoteQuery } from '../hooks/useRemoteQuery'
+import { usePrivateRefresh } from '../hooks/usePrivateRefresh'
 import { errorMessage } from '../services/http/errors'
 import { laPazInstant } from '../utils/dates'
 
@@ -18,6 +20,7 @@ export function DevicesScreen() {
   const revokeLock = useRef(false)
   const load = useCallback((signal: AbortSignal) => devices(controller!, signal), [controller])
   const query = useRemoteQuery(load)
+  const refresh = usePrivateRefresh(query.reload, query.loading || revoking !== null)
   async function revoke(id: number) {
     if (!controller || revokeLock.current) return
     revokeLock.current = true
@@ -29,11 +32,10 @@ export function DevicesScreen() {
     } catch (cause) { setError(errorMessage(cause)) }
     finally { revokeLock.current = false; setRevoking(null) }
   }
-  return <Screen>
+  return <Screen refresh={refresh}>
     <Text style={s.body}>Administra las instalaciones registradas para tu cuenta.</Text>
-    <ActionButton secondary label="Actualizar" busy={query.loading} disabled={revoking !== null} onPress={query.refresh} />
-    {query.loading && <LoadingState label="Consultando dispositivos de la cuenta" />}
-    {(error || query.error) && <Notice message={error || query.error!} />}
+    <QueryFeedback loading={query.loading && !refresh.refreshing} error={query.error} label="Consultando dispositivos de la cuenta" retry={refresh.onRefresh} />
+    {error && <Notice message={error} />}
     {query.data?.length === 0 && <EmptyState title="Sin dispositivos en esta consulta" message="No se recibieron instalaciones registradas para mostrar." />}
     {query.data?.map((device) => <View style={s.card} key={device.id}>
       <Text style={s.subtitle}>{device.device_name}</Text>

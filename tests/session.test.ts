@@ -41,10 +41,11 @@ test('incorrect login does not persist a token', async () => {
   assert.equal(h.session.getSnapshot().status, 'unauthenticated')
   assert.equal(h.values.has(SESSION_KEY), false)
 })
-test('inactive account has the real backend validation message', async () => {
+test('legacy inactive validation fields do not turn a generic rejected login into an account disclosure', async () => {
   const h = harness(async (_path, _init, url) => response(url, { errors: { identifier: ['La cuenta se encuentra inactiva.'] } }, 422))
   await signIn(h)
-  assert.match(h.session.getSnapshot().message!, /inactiva/)
+  assert.match(h.session.getSnapshot().message!, /Revisa tu correo o código y tu contraseña/)
+  assert.doesNotMatch(h.session.getSnapshot().message!, /inactiva|estudiante/)
   assert.equal(canAccessPrivate(h.session.getSnapshot()), false)
 })
 test('initial password and missing operator permission do not grant a session', async () => {

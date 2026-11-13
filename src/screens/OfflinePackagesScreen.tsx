@@ -8,7 +8,9 @@ import { Card } from '../components/Card'
 import { EmptyState, LoadingState } from '../components/FeedbackStates'
 import { Notice } from '../components/Notice'
 import { PackageCard } from '../components/control/PackageCard'
+import { ProtectionDiagnostics } from '../components/control/ProtectionDiagnostics'
 import { theme } from '../config/theme'
+import { offlineLabWarning, offlineProtection } from '../config/offlineLab'
 import { useOffline } from '../features/offline/OfflineProvider'
 import { useAuth } from '../features/auth/AuthProvider'
 import { listDestination } from '../ui/controlScreens'
@@ -21,12 +23,16 @@ export function OfflinePackagesScreen() {
   const summary = pendingSummary(offline.runtime !== null && !offline.busy, offline.syncItems, offline.incidentItems)
   return <Screen>
     <AppText variant="subtitle" accessibilityRole="header">Preparación y acceso sin conexión</AppText>
-    <AppText>Tu lista se guarda protegida en este dispositivo. Abrirla requiere biometría y una autorización local vigente.</AppText>
+    <AppText>{offlineProtection.laboratory
+      ? 'Tu lista se guarda cifrada en el almacén de laboratorio. Abrirla requiere una autorización local vigente.'
+      : 'Tu lista se guarda protegida en este dispositivo. Abrirla requiere biometría y una autorización local vigente.'}</AppText>
+    {offlineProtection.laboratory && <Notice tone="warning" message={offlineLabWarning} />}
     {(offline.error || message) && <Notice tone="error" message={offline.error ?? message!} />}
     {!offline.runtime ? <Card>
       <AppText variant="subtitle">Almacén bloqueado</AppText>
       <AppText>No se muestran listas, estudiantes ni cantidades personales hasta desbloquearlo.</AppText>
       <ActionButton label="Desbloquear almacén protegido" busy={offline.busy} onPress={() => { void offline.unlock() }} />
+      <ProtectionDiagnostics />
       <Notice tone="info" message="Una copia vigente puede consultarse sin validar primero la sesión remota. Si reiniciaste el teléfono o se cerró la concesión local, puede ser necesaria una nueva validación con internet de la cuenta original." />
     </Card> : <>
       <Card>
@@ -38,7 +44,7 @@ export function OfflinePackagesScreen() {
         </View>
       </Card>
       {offline.busy && <LoadingState label="Hay una operación local en curso. Los estados de cada copia se muestran debajo." />}
-      <ActionButton secondary label="Actualizar estados locales" disabled={offline.busy} onPress={() => localAction(offline.refresh)} />
+      <ActionButton secondary label="Verificar vigencia de copias locales" disabled={offline.busy} onPress={() => localAction(offline.refresh)} />
       {offline.packages.length === 0 && !offline.busy && <EmptyState title="No hay listas descargadas"
         message="Abre un examen o colaboración autorizado con internet para preparar tu propia lista." />}
       {offline.packages.map((p) => <PackageCard key={p.id} record={p} online={!!controller?.offlineBinding()} busy={offline.busy}

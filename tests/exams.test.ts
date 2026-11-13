@@ -29,6 +29,12 @@ test('an empty backend page remains empty', async () => {
   await signIn(h)
   assert.deepEqual((await teacherExams(h.session, 'past', 1)).data, [])
 })
+test('an incomplete teacher page is a protocol error rather than an invented page count', async () => {
+  const api = { async request() {
+    return { data: [exam], meta: { current_page: 1, per_page: 10 } }
+  } }
+  await assert.rejects(teacherExams(api, 'upcoming', 1), { kind: 'protocol' })
+})
 test('an active collaboration is represented without invented teacher or status fields', async () => {
   const h = harness(async (path, _init, url) => response(url, path === 'me/collaborations'
     ? { data: [assignment] } : path === 'me' ? { success: true, data: user } : loginResponse()))

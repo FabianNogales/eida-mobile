@@ -10,10 +10,12 @@ import { id, uuid } from './manifest'
 import { SerializedSql, type RawSqlPort } from './serializedSql'
 import { OutboxRepository } from './sync/outbox'
 import { IncidentRepository } from '../incidents/repository'
+import { OfflineProtectionError, protectedKey, protectedOperation, requireStrongBiometry } from './protection'
+import { offlineProtection } from '../../config/offlineLab'
 
-const options: SecureStore.SecureStoreOptions = { keychainService: 'bo.eida.control.offline.v1',
+const options: SecureStore.SecureStoreOptions = { keychainService: offlineProtection.keychainService,
   keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY }
-const protectedOptions: SecureStore.SecureStoreOptions = { ...options, requireAuthentication: true,
+const protectedOptions: SecureStore.SecureStoreOptions = { ...options, requireAuthentication: offlineProtection.requireAuthentication,
   authenticationPrompt: 'Desbloquear lista offline de EIDA Control' }
 const grantKey = 'active-offline-scope'
 export interface VaultRuntime {
@@ -57,16 +59,14 @@ export class NativeOfflineVault {
     try {
       await this.lock()
       const generation = this.generation
-      const check = () => { if (this.generation !== generation) throw new Error('El almacén local está bloqueado.') }
+      const check = () => { if (this.generation !== generation) throw new OfflineProtectionError('INTERRUPTED') }
       if (this.needsOnlineValidation && !online) throw new Error('El acceso local se cerró. Primero valida de nuevo la cuenta con internet.')
-      if (!SecureStore.canUseBiometricAuthentication()) {
-        throw new Error('Configura biometría segura en Android para proteger los paquetes. No se guardarán datos sin protección.')
-      }
+      if (offlineProtection.requireAuthentication) requireStrongBiometry(() => SecureStore.canUseBiometricAuthentication())
       const apiBase = resolveApiBase(process.env.EXPO_PUBLIC_EIDA_API_BASE_URL)
       const installationId = await nativeSessionStorage.installationId()
       const credential = await nativeSessionStorage.load()
       if (credential?.logoutPending) throw new Error('El cierre de sesión está pendiente. Vuelve a iniciar sesión antes de abrir paquetes.')
-      const raw = online ? JSON.stringify(online) : await SecureStore.getItemAsync(grantKey, options)
+      const raw = online ? JSON.stringify(online) : await protectedOperation(() => SecureStore.getItemAsync(grantKey, options))
       if (!raw) throw new Error('Primero valida tu cuenta con internet y prepara una lista en este dispositivo.')
       const b = JSON.parse(raw) as OfflineBinding
       const binding: OfflineBinding = { apiBase: resolveApiBase(b.apiBase), userId: id(b.userId), deviceId: id(b.deviceId), installationId: uuid(b.installationId) }
@@ -76,25 +76,22 @@ export class NativeOfflineVault {
       const module = await import('react-native-quick-crypto'), crypto = module.default
       const digest: Digest = (data) => crypto.createHash('sha256').update(typeof data === 'string' ? module.Buffer.from(data, 'utf8') : module.Buffer.from(data)).digest('hex')
       const scope = digest(JSON.stringify([binding.apiBase, binding.userId, binding.installationId, binding.deviceId]))
-      const marker = await SecureStore.getItemAsync('scope-' + scope, options)
-      let key = await SecureStore.getItemAsync('key-' + scope, protectedOptions)
-      check()
-      if (!key) {
-        if (marker || !online) throw new Error('La clave protegida no está disponible. Se preservaron la base y sus pendientes; no se recreará la clave.')
-        key = crypto.randomBytes(32).toString('hex')
-        await SecureStore.setItemAsync('key-' + scope, key, protectedOptions)
-        await SecureStore.setItemAsync('scope-' + scope, '1', options)
-      }
+      const key = await protectedKey({
+        marker: () => SecureStore.getItemAsync('scope-' + scope, options),
+        read: () => SecureStore.getItemAsync('key-' + scope, protectedOptions),
+        write: (key) => SecureStore.setItemAsync('key-' + scope, key, protectedOptions),
+        mark: () => SecureStore.setItemAsync('scope-' + scope, '1', options),
+      }, !!online, () => crypto.randomBytes(32).toString('hex'), check)
       try {
         const sqlite = await import('expo-sqlite')
-        const raw = await sqlite.openDatabaseAsync(`eida-${scope}.db`, { useNewConnection: true })
+        const raw = await sqlite.openDatabaseAsync(`${offlineProtection.databasePrefix}${scope}.db`, { useNewConnection: true })
         db = new SerializedSql(raw as unknown as RawSqlPort, check)
         check()
         await initializeCipher(db, key)
       } catch (e) {
         if (e instanceof ProtectedStorageError) throw e
         // Do not expose native SQL statements (including PRAGMA key) in the UI or logs.
-        throw new Error('No se pudo abrir la base cifrada. Conserva sus datos y revisa la nueva development build y su clave protegida.')
+        throw new Error('No se pudo abrir la base cifrada. El fallo puede ser de apertura, clave o integración SQLite/SQLCipher; no indica que cancelaste la biometría. Conserva los datos y solicita revisión de la APK y la clave protegida.')
       }
       // Also fail closed if the native monotonic clock is absent.
       await nativeClock.sample()
@@ -118,7 +115,7 @@ export class NativeOfflineVault {
         },
       }
       check()
-      await this.grantOperation(async () => { check(); await SecureStore.setItemAsync(grantKey, JSON.stringify(binding), options) })
+      await this.grantOperation(async () => { check(); await protectedOperation(() => SecureStore.setItemAsync(grantKey, JSON.stringify(binding), options)) })
       check()
       this.db = db; this.runtime = runtime
       this.needsOnlineValidation = false

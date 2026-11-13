@@ -13,6 +13,7 @@ import { QueryFeedback } from '../components/general/QueryFeedback'
 import { OnlineAccessState } from '../components/operations/OnlineAccessState'
 import { theme } from '../config/theme'
 import { useRemoteQuery } from '../hooks/useRemoteQuery'
+import { usePrivateRefresh } from '../hooks/usePrivateRefresh'
 import { useDiscipline } from '../features/incidents/useDiscipline'
 import { incidentTypes, statusLabels } from '../features/incidents/contracts'
 import { laPazInstant } from '../utils/dates'
@@ -24,13 +25,15 @@ export function IncidentsScreen() {
   const load = useCallback(async (signal: AbortSignal) => permission?.read && api ? api.incidents(examId, page, signal) : null, [api, permission, examId, page])
   const query = useRemoteQuery(load)
   const allowed = permission?.read && String(permission.examId) === examId
+  // The refreshed permission changes the dependent query; do not re-read with the previous grant.
+  const refresh = usePrivateRefresh(context.reload, context.loading || query.loading)
   return <ListScreen data={allowed ? query.data?.data.filter((item) => String(item.examId) === examId) ?? [] : []}
+    refresh={refresh}
     keyExtractor={(item) => item.id} ListHeaderComponent={<View style={s.section}>
       <AppText variant="subtitle" accessibilityRole="header">Reportes del examen</AppText>
       <Notice tone="info" message="Consulta oficial online. Un reporte no implica una infracción confirmada ni una sanción." />
-      {!allowed ? <OnlineAccessState loading={context.loading} error={context.error}
-        message="El servidor no autoriza consultar incidencias de este examen con esta cuenta." retry={context.refresh} /> : <>
-        <ActionButton secondary label="Actualizar autorización y reportes" busy={context.loading || query.loading} onPress={() => { context.refresh(); query.refresh() }} />
+      {!allowed ? (!refresh.refreshing || !context.loading) && <OnlineAccessState loading={context.loading} error={context.error}
+        message="El servidor no autoriza consultar incidencias de este examen con esta cuenta." retry={refresh.onRefresh} /> : <>
         <QueryFeedback loading={query.loading} error={query.error} label="Consultando reportes oficiales" retry={query.refresh} />
         {permission?.manage && <>
           <ActionButton label="Infracciones · docente autorizado" onPress={() => router.push({ pathname: '/(private)/infractions', params: { examId } })} />
@@ -60,9 +63,10 @@ export function IncidentDetailScreen() {
   const query = useRemoteQuery(load)
   const allowed = context.data?.read && String(context.data.examId) === examId
   const incident = allowed && query.data && String(query.data.examId) === examId && query.data.id === incidentId ? query.data : null
-  return <Screen>
-    {!allowed ? <OnlineAccessState loading={context.loading} error={context.error}
-      message="No tienes autorización actual para consultar este reporte." retry={context.refresh} /> : <>
+  const refresh = usePrivateRefresh(context.reload, context.loading || query.loading)
+  return <Screen refresh={refresh}>
+    {!allowed ? (!refresh.refreshing || !context.loading) && <OnlineAccessState loading={context.loading} error={context.error}
+      message="No tienes autorización actual para consultar este reporte." retry={refresh.onRefresh} /> : <>
       <QueryFeedback loading={query.loading} error={query.error} label="Consultando detalle oficial" retry={query.refresh} />
       {incident && <Card>
         <StatusBadge label={statusLabels[incident.status] ?? incident.status} />
@@ -72,7 +76,6 @@ export function IncidentDetailScreen() {
         <AppText>Reportó: {incident.reporter ?? 'No informado'} · {laPazInstant(incident.reportedAt)}</AppText>
         <Notice tone="info" message="Estado de un reporte oficial. No supone una decisión disciplinaria." />
       </Card>}
-      <ActionButton secondary label="Actualizar detalle y autorización" onPress={() => { context.refresh(); query.refresh() }} />
     </>}
   </Screen>
 }

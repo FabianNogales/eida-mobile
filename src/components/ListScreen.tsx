@@ -1,13 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, type ComponentRef } from 'react'
-import { FlatList, Keyboard, StyleSheet, type FlatListProps } from 'react-native'
+import { useCallback, useEffect, useMemo, useRef, type ComponentRef, type ReactNode } from 'react'
+import { FlatList, Keyboard, StyleSheet, View, type FlatListProps } from 'react-native'
 import { ScreenFrame, type ScreenFrameProps } from './ScreenFrame'
 import { theme } from '../config/theme'
 import { KeyboardFocusContext, type TextInputHandle } from './keyboardFocus'
+import { screenRefreshProps, type ScreenRefresh } from './screenRefresh'
 
 // A single virtualized list. Header/footer inputs share the same focus handling
 // as Screen, without nesting the list inside a ScrollView.
 export function ListScreen<Item>({ home, header, bottomOwnedByNavigator, avoidKeyboard,
-  contentContainerStyle, onLayout, ...props }: FlatListProps<Item> & Omit<ScreenFrameProps, 'children'>) {
+  contentContainerStyle, onLayout, refresh, footer, scrollKey, ...props }: FlatListProps<Item> & Omit<ScreenFrameProps, 'children'> & {
+  refresh?: ScreenRefresh; footer?: ReactNode; scrollKey?: number
+}) {
   const list = useRef<ComponentRef<typeof FlatList<Item>> | null>(null)
   const focused = useRef<TextInputHandle | null>(null)
   const reveal = useCallback(() => {
@@ -21,11 +24,16 @@ export function ListScreen<Item>({ home, header, bottomOwnedByNavigator, avoidKe
     const subscription = Keyboard.addListener('keyboardDidShow', reveal)
     return () => subscription.remove()
   }, [reveal])
+  useEffect(() => {
+    if (scrollKey !== undefined) list.current?.scrollToOffset({ offset: 0, animated: false })
+  }, [scrollKey])
   return <ScreenFrame home={home} header={header} bottomOwnedByNavigator={bottomOwnedByNavigator} avoidKeyboard={avoidKeyboard}>
-    {(inset) => <KeyboardFocusContext.Provider value={focus}><FlatList {...props} ref={list}
+    {(inset) => <KeyboardFocusContext.Provider value={focus}><FlatList {...props} {...screenRefreshProps(refresh)} ref={list}
       onLayout={(event) => { onLayout?.(event); reveal() }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
       contentInsetAdjustmentBehavior="never" contentContainerStyle={[styles.content,
-        { paddingBottom: theme.spacing.pageBottom + inset }, contentContainerStyle]} /></KeyboardFocusContext.Provider>}
+        { paddingBottom: footer ? theme.spacing.md : theme.spacing.pageBottom + inset }, contentContainerStyle]} />
+      {footer && <View style={{ paddingBottom: inset }}>{footer}</View>}
+    </KeyboardFocusContext.Provider>}
   </ScreenFrame>
 }
 const styles = StyleSheet.create({ content: { flexGrow: 1, width: '100%', maxWidth: theme.layout.contentMaxWidth,

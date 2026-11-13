@@ -11,6 +11,9 @@ const navigationTheme = { ...DefaultTheme, colors: { ...DefaultTheme.colors,
   primary: theme.colors.primary, background: theme.colors.background, card: theme.colors.surface,
   text: theme.colors.text, border: theme.colors.border, notification: theme.colors.actionAccent } }
 
+// Protected route removal lands directly here, without an index/session redirect chain.
+export const unstable_settings = { initialRouteName: 'login' }
+
 export default function RootLayout() {
   return <SafeAreaProvider initialMetrics={initialWindowMetrics}><ThemeProvider value={navigationTheme}>
     <AuthProvider><OfflineProvider><Navigation /></OfflineProvider></AuthProvider>
@@ -22,8 +25,8 @@ function Navigation() {
   return <>
     <StatusBar style="dark" />
     <Stack screenOptions={stackScreenOptions}>
-      <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="session" options={{ headerShown: false }} />
       <Stack.Screen name="qr-diagnostics" options={{ title: 'Prueba QR v3' }} />
       <Stack.Screen name="offline" options={{ headerShown: false }} />

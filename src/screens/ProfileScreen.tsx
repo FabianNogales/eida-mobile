@@ -17,6 +17,7 @@ import { canAccessPrivate } from '../features/auth/guards'
 import { devices } from '../features/exams/api'
 import { useOffline } from '../features/offline/OfflineProvider'
 import { useRemoteQuery } from '../hooks/useRemoteQuery'
+import { usePrivateRefresh } from '../hooks/usePrivateRefresh'
 import { logoutConfirmation } from '../ui/generalScreens'
 import { pendingSummary } from '../ui/pendingSummary'
 import { laPazInstant } from '../utils/dates'
@@ -31,9 +32,10 @@ function AccountProfile() {
   const [confirmLogout, setConfirmLogout] = useState(false)
   const load = useCallback((signal: AbortSignal) => devices(controller!, signal), [controller, session.user?.id])
   const query = useRemoteQuery(load)
+  const refresh = usePrivateRefresh(query.reload, query.loading || session.busy || confirmLogout)
   const summary = pendingSummary(offline.runtime !== null, offline.syncItems, offline.incidentItems)
   const currentDevice = query.data?.find((device) => device.id === session.deviceId)
-  return <Screen>
+  return <Screen refresh={refresh}>
     <IdentityBlock name={session.user?.display_name ?? ''} detail={session.user?.email} />
     <Card>
       <AppText variant="subtitle" accessibilityRole="header">Cuenta institucional</AppText>
@@ -52,12 +54,10 @@ function AccountProfile() {
     </Card>
     <Card>
       <AppText variant="subtitle" accessibilityRole="header">Dispositivos autorizados</AppText>
-      <QueryFeedback loading={query.loading} error={query.error} label="Consultando dispositivos" retry={query.refresh} />
+      <QueryFeedback loading={query.loading && !refresh.refreshing} error={query.error} label="Consultando dispositivos" retry={refresh.onRefresh} />
       {query.data && <AppText>{query.data.filter((device) => device.status === 'ACTIVE').length} activos · {query.data.filter((device) => device.status === 'REVOKED').length} revocados</AppText>}
-      {query.data && <AppText variant="caption" style={s.muted}>Estado según la última consulta. Actualiza después de administrar dispositivos.</AppText>}
       {currentDevice && <AppText>Esta sesión: {currentDevice.device_name}</AppText>}
       {query.data?.length === 0 && <AppText>No hay dispositivos en la consulta actual.</AppText>}
-      <ActionButton secondary label="Actualizar dispositivos" busy={query.loading} onPress={query.refresh} />
       <ActionButton secondary label="Administrar dispositivos" onPress={() => router.push('/(private)/devices')} />
     </Card>
     <Card>

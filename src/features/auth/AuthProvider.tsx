@@ -8,6 +8,7 @@ import { AuthApi } from './api'
 import { nativeSessionStorage } from './nativeStorage'
 import { SessionController } from './session'
 import type { SessionSnapshot } from './contracts'
+import { nextResumeState, shouldRestoreOnResume } from './resume'
 
 const emptySubscribe = () => () => {}
 const Context = createContext<{ session: SessionSnapshot; controller: SessionController | null } | null>(null)
@@ -31,8 +32,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     void controller?.restore()
+    let previous: string | null = AppState.currentState
     const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void controller?.restore()
+      const restore = controller && shouldRestoreOnResume(previous, state, controller.getSnapshot())
+      previous = nextResumeState(previous, state)
+      if (restore) void controller?.restore()
     })
     return () => subscription.remove()
   }, [controller])

@@ -20,6 +20,7 @@ import { useUnsavedChanges } from '../navigation/useUnsavedChanges'
 import { reportDescriptionError } from '../ui/operations'
 import { infractionFormPolicy, sameInfractionFormScope, type InfractionFormScope } from '../ui/infractionFormScope'
 import { useRemoteQuery } from '../hooks/useRemoteQuery'
+import { usePrivateRefresh } from '../hooks/usePrivateRefresh'
 import { useDiscipline } from '../features/incidents/useDiscipline'
 import { useOffline } from '../features/offline/OfflineProvider'
 import { infractionTypes, statusLabels, type InfractionType, type InfractionStatus, type OfficialInfraction, type Person } from '../features/incidents/contracts'
@@ -113,18 +114,17 @@ export function InfractionsScreen() {
   const descriptionError = body.length > 0 ? reportDescriptionError(body) : null
   const allowed = canAccess && p?.manage && String(p.examId) === examId
   const detail = allowed ? query.data?.data.find((item) => item.id === detailId && String(item.examId) === examId) : null
-  if (!allowed) return <Screen><OnlineAccessState loading={context.loading} error={context.error}
-    message="Solo el docente autorizado puede gestionar infracciones de este examen." retry={context.refresh} /></Screen>
+  const refresh = usePrivateRefresh(context.reload, busy || context.loading || query.loading || students.loading)
+  if (!allowed) return <Screen refresh={refresh}>{!(refresh.refreshing && context.loading) &&
+    <OnlineAccessState loading={context.loading} error={context.error}
+      message="Solo el docente autorizado puede gestionar infracciones de este examen." retry={refresh.onRefresh} />}</Screen>
   if (draftId && (!offline.runtime || draftScope?.runtime !== offline.runtime || draftScope?.id !== draftId)) return <Screen>
     <Notice message={message ?? 'El borrador permanece cifrado. Desbloquea su almacén y espera la revisión de identidad antes de abrirlo.'} /></Screen>
-  return <Screen>
+  return <Screen refresh={refresh}>
     <AppText variant="subtitle" accessibilityRole="header">Gestión docente de infracciones</AppText>
     <Notice tone="info" message="Registro y cambios de estado solo online. Un borrador local no es una infracción oficial y no se envía automáticamente." />
     {message && <Notice message={message} />}
-    <ActionButton secondary label="Actualizar autorización y listado" disabled={busy} busy={context.loading}
-      onPress={() => { context.refresh(); query.refresh() }} />
     {dirty && <AppText variant="caption">Los cambios se conservan mientras continúe tu autorización.</AppText>}
-    <ActionButton secondary label="Actualizar solo el listado oficial" disabled={busy} onPress={query.refresh} />
     <Card>
       <AppText variant="subtitle" accessibilityRole="header">{draftId ? 'Revisar borrador protegido' : 'Nuevo reporte de infracción'}</AppText>
       <QueryFeedback loading={students.loading} error={students.error} label="Consultando estudiantes autorizados" retry={students.refresh} />

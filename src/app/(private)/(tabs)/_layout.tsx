@@ -4,14 +4,16 @@ import { MainTabBar } from '../../../components/MainTabBar'
 import { TabInsetsContext } from '../../../navigation/TabInsetsContext'
 
 export const unstable_settings = { initialRouteName: 'index' }
+const homeHeader = () => <MainHeader title="Inicio" compact />
+const examsHeader = () => <MainHeader title="Mis exámenes" compact />
 
 export default function MainTabsLayout() {
   return <TabInsetsContext.Provider value={true}>
     <Tabs backBehavior="history" tabBar={(props) => <MainTabBar {...props} />}
       screenOptions={{ header: ({ options }) => <MainHeader title={options.title ?? 'EIDA Control'} />,
         lazy: true, popToTopOnBlur: false }}>
-      <Tabs.Screen name="index" options={{ title: 'EIDA Control' }} />
-      <Tabs.Screen name="exams" options={{ title: 'Mis exámenes' }} />
+      <Tabs.Screen name="index" options={{ title: 'Inicio', header: homeHeader }} />
+      <Tabs.Screen name="exams" options={{ title: 'Mis exámenes', header: examsHeader }} />
       <Tabs.Screen name="pending" options={{ title: 'Pendientes' }} />
       <Tabs.Screen name="profile" options={{ title: 'Perfil' }} />
     </Tabs>

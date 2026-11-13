@@ -124,7 +124,7 @@ function LocalList({ packageId, focusSearch }: { packageId: string; focusSearch:
   const closeDetail = () => { setSelected(null); setPhotos([]); setEvent(null); setToken('') }
   const openScan = () => { Keyboard.dismiss(); closeDetail(); router.push(scanDestination(packageId)) }
   const openIncident = () => { Keyboard.dismiss(); closeDetail(); router.push({ pathname: '/offline/report-incident', params: { packageId } }) }
-  if (!r) return <Screen><Notice message="El almacén está bloqueado. Desbloquéalo con biometría para consultar tu lista." />
+  if (!r) return <Screen><Notice message="El almacén está bloqueado. Desbloquea el almacén protegido para consultar tu lista." />
     <ActionButton label="Ir al desbloqueo" onPress={() => router.replace('/offline')} /></Screen>
   if (blocked && currentState) return <Screen><Notice message={`Consulta bloqueada: ${currentState.state}. Los eventos pendientes se conservan protegidos.`} />
     <ActionButton label="Ver paquetes y estado" onPress={() => router.replace('/offline')} /></Screen>

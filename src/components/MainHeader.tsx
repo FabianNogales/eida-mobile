@@ -4,10 +4,10 @@ import { theme } from '../config/theme'
 import { AppText } from './AppText'
 import { EidaLogo } from './general/EidaLogo'
 
-export function MainHeader({ title }: { title: string }) {
+export function MainHeader({ title, compact = false }: { title: string; compact?: boolean }) {
   return <SafeAreaView edges={['top', 'left', 'right']} style={styles.header}>
-    <View style={styles.row}><EidaLogo compact decorative />
-      <AppText variant="subtitle" accessibilityRole="header" style={styles.title}>{title}</AppText>
+    <View style={[styles.row, compact && styles.compact]}><EidaLogo compact decorative />
+      <AppText variant="subtitle" accessibilityRole="header" style={[styles.title, compact && styles.compactTitle]}>{title}</AppText>
     </View>
   </SafeAreaView>
 }
@@ -17,4 +17,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.xl, paddingVertical: theme.spacing.md, width: '100%',
     maxWidth: theme.layout.contentMaxWidth, alignSelf: 'center' },
   title: { textAlign: 'center' },
+  compact: { justifyContent: 'flex-start' }, compactTitle: { textAlign: 'left', flexShrink: 1 },
 })

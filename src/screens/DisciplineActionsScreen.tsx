@@ -17,6 +17,7 @@ import { canAccessPrivate } from '../features/auth/guards'
 import { useUnsavedChanges } from '../navigation/useUnsavedChanges'
 import { useDiscipline } from '../features/incidents/useDiscipline'
 import { useRemoteQuery } from '../hooks/useRemoteQuery'
+import { usePrivateRefresh } from '../hooks/usePrivateRefresh'
 
 export function DisciplineActionsScreen() {
   const { examId = '' } = useLocalSearchParams<{ examId: string }>(), { api, context } = useDiscipline(examId), p = context.data
@@ -62,17 +63,18 @@ export function DisciplineActionsScreen() {
     ])
     else change()
   }
-  if (!p?.manage || String(p.examId) !== examId) return <Screen>
+  const refresh = usePrivateRefresh(context.reload,
+    busy || !!reason.trim() || context.loading || expulsions.loading || entries.loading || students.loading)
+  if (!p?.manage || String(p.examId) !== examId) return <Screen refresh={refresh}>
+    {!(refresh.refreshing && context.loading) &&
     <OnlineAccessState loading={context.loading} error={context.error}
-      message="Esta cuenta no está autorizada como docente responsable para estas acciones." retry={context.refresh} /></Screen>
+      message="Esta cuenta no está autorizada como docente responsable para estas acciones." retry={refresh.onRefresh} />}</Screen>
   const lastPage = mode === 'expulsions' ? expulsions.data?.lastPage : entries.data?.lastPage
-  return <Screen>
+  return <Screen refresh={refresh}>
     <AppText variant="subtitle" accessibilityRole="header">Acciones sensibles · solo online</AppText>
     <Notice message="Las expulsiones y anulaciones afectan registros oficiales. No se ejecutan ni se encolan en SQLite; requieren autorización actual de Laravel." />
     {message && <Notice message={message} />}
     <ChoiceChips options={options} value={mode} disabled={busy} onChange={changeMode} />
-    <ActionButton secondary label="Actualizar autorización y estados oficiales" disabled={busy || !!reason.trim()}
-      onPress={() => { context.refresh(); expulsions.refresh(); entries.refresh(); students.refresh() }} />
     <Card>
       <AppText variant="subtitle" accessibilityRole="header">{mode === 'expulsions' ? 'Motivo de expulsión' : 'Motivo de anulación'}</AppText>
       <FormField label="Motivo obligatorio" value={reason} editable={!busy} onChangeText={setReason} maxLength={4000} multiline />

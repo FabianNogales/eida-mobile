@@ -12,7 +12,7 @@ import { queueKnown } from '../src/ui/operations'
 
 // Read the real JSX guards without mounting screens or opening native services.
 // These are source-level presentation checks, not an Android/FlatList renderer.
-type ListSlot = 'ListEmptyComponent' | 'ListFooterComponent'
+type ListSlot = 'ListEmptyComponent' | 'ListFooterComponent' | 'footer'
 function listSlot(screen: string, slot: ListSlot) {
   const path = new URL(`../src/screens/${screen}.tsx`, import.meta.url)
   const source = ts.createSourceFile(path.pathname, readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
@@ -35,18 +35,16 @@ function listSlot(screen: string, slot: ListSlot) {
   }
 }
 
-test('exam empty state waits for a successful resolved query; footer retains its original pagination guard', () => {
-  const empty = listSlot('ExamsScreen', 'ListEmptyComponent'), footer = listSlot('ExamsScreen', 'ListFooterComponent')
-  const data = { data: [] }
-  assert.equal(empty({ query: { data, loading: false, error: null } }), true)
-  for (const query of [
-    { data: null, loading: true, error: null },
-    { data, loading: true, error: null },
-    { data, loading: false, error: 'network error' },
-    { data: null, loading: false, error: null },
-  ]) assert.equal(empty({ query }), false)
-  assert.equal(footer({ query: { data: null } }), false)
-  assert.equal(footer({ query: { data, loading: true, error: 'refresh error' } }), true)
+test('exam empty state waits for a successful response and the footer requires a second visual page', () => {
+  const empty = listSlot('ExamsScreen', 'ListEmptyComponent'), footer = listSlot('ExamsScreen', 'footer')
+  const scope = { result: { data: [] }, loading: false, query: { error: null } }
+  assert.equal(empty(scope), true)
+  assert.equal(empty({ ...scope, loading: true }), false)
+  assert.equal(empty({ ...scope, query: { error: 'network error' } }), false)
+  assert.equal(empty({ ...scope, result: null }), false)
+  assert.equal(footer({ pagination: null }), false)
+  assert.equal(footer({ pagination: { pages: 1 } }), false)
+  assert.equal(footer({ pagination: { pages: 2 } }), true)
 })
 
 test('official incident empty and footer slots preserve authorization, loading and error conditions', () => {

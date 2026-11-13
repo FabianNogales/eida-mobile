@@ -3,6 +3,7 @@ import { array, boolean, integer, nullableText, object, text } from '../../servi
 import { protocolError } from '../../services/http/errors'
 import { instant } from '../../utils/dates'
 import type { CurrentUser, MobileDevice, MobileLogin } from './contracts'
+import { loginFailure } from './loginFeedback'
 
 export function parseUser(value: unknown): CurrentUser {
   const v = object(value)
@@ -29,9 +30,11 @@ export function parseLogin(value: unknown): MobileLogin {
 export class AuthApi {
   constructor(private readonly http: HttpClient, private readonly appVersion = '0.1.0') {}
   async login(identifier: string, password: string, installationId: string): Promise<MobileLogin> {
-    return parseLogin(await this.http.request('auth/mobile/login', { method: 'POST', body: {
-      identifier, password, installation_id: installationId, device_name: 'EIDA Control Android', app_version: this.appVersion,
-    } }))
+    try {
+      return parseLogin(await this.http.request('auth/mobile/login', { method: 'POST', body: {
+        identifier, password, installation_id: installationId, device_name: 'EIDA Control Android', app_version: this.appVersion,
+      } }))
+    } catch (error) { throw loginFailure(error) }
   }
   async me(token: string): Promise<CurrentUser> {
     const response = object(await this.http.request('me', { token }))

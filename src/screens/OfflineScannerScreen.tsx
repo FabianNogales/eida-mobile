@@ -81,7 +81,7 @@ export function OfflineScannerScreen() {
   }, [session])
   const onFailure = useCallback((scanId: number) => session?.cameraFailed(scanId), [session])
 
-  if (!runtime) return <Screen><Notice message="El almacén está bloqueado. Desbloquéalo con biometría antes de escanear. Si el permiso de cámara interrumpió la aplicación, vuelve a desbloquearlo." />
+  if (!runtime) return <Screen><Notice message="El almacén está bloqueado. Desbloquea el almacén protegido antes de escanear. Si el permiso de cámara interrumpió la aplicación, vuelve a desbloquearlo." />
     <ActionButton label="Ir al desbloqueo" onPress={() => router.replace('/offline')} /></Screen>
   if (!packageId) return <Screen><Notice message="Falta la referencia de la lista descargada." />
     <ActionButton label="Ver paquetes" onPress={() => router.replace('/offline')} /></Screen>

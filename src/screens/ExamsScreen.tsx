@@ -1,70 +1,69 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { View, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
-import { ActionButton } from '../components/ActionButton'
-import { AppText } from '../components/AppText'
 import { EmptyState } from '../components/FeedbackStates'
 import { ListScreen } from '../components/ListScreen'
-import { Notice } from '../components/Notice'
+import { TextAction } from '../components/general/TextAction'
 import { ExamCard } from '../components/general/ExamCard'
 import { ExamFilters } from '../components/general/ExamFilters'
+import { ExamPagination } from '../components/general/ExamPagination'
 import { QueryFeedback } from '../components/general/QueryFeedback'
 import { theme } from '../config/theme'
 import { useAuth } from '../features/auth/AuthProvider'
-import { teacherExams, type ExamView } from '../features/exams/api'
+import { canAccessPrivate } from '../features/auth/guards'
+import { teacherExams, type ExamPage, type ExamView } from '../features/exams/api'
 import { useOffline } from '../features/offline/OfflineProvider'
+import { usePrivateRefresh } from '../hooks/usePrivateRefresh'
 import { useRemoteQuery } from '../hooks/useRemoteQuery'
-import { examDestination, examIncidentsDestination, orderedExams } from '../ui/generalScreens'
+import { protocolError } from '../services/http/errors'
+import { examFeedRows, examPageLocation, examPagination } from '../ui/examPresentation'
+import { examDestination } from '../ui/generalScreens'
 
 export function ExamsScreen() {
   const { session } = useAuth()
-  return session.user ? <ExamFeed key={session.user.id} /> : null
+  const [view, setView] = useState<ExamView>('upcoming')
+  return canAccessPrivate(session) ? <ExamFeed key={`${session.user?.id}:${view}`} view={view} setView={setView} /> : null
 }
-function ExamFeed() {
+
+function ExamFeed({ view, setView }: { view: ExamView; setView(view: ExamView): void }) {
   const router = useRouter()
   const { controller } = useAuth()
   const { runtime, packages } = useOffline()
-  const [view, setView] = useState<ExamView>('upcoming'), [page, setPage] = useState(1)
-  // A query boundary discards the previous view/page before the next effect runs.
-  return <ExamPage key={view + ':' + page} controller={controller} view={view} page={page}
-    unlocked={runtime !== null} packages={packages} setView={(next) => { setPage(1); setView(next) }}
-    setPage={setPage} onCollaborations={() => router.push('/(private)/collaborations')} />
-}
-function ExamPage({ controller, view, page, unlocked, packages, setView, setPage, onCollaborations }: {
-  controller: ReturnType<typeof useAuth>['controller']; view: ExamView; page: number
-  unlocked: boolean; packages: ReturnType<typeof useOffline>['packages']
-  setView(view: ExamView): void; setPage(page: number): void; onCollaborations(): void
-}) {
-  const router = useRouter()
-  const load = useCallback((signal: AbortSignal) => teacherExams(controller!, view, page, signal), [controller, view, page])
+  const [page, setPage] = useState(1)
+  const [lastMeta, setLastMeta] = useState<Pick<ExamPage, 'total' | 'perPage' | 'lastPage' | 'currentPage'> | null>(null)
+  const { serverPage, offset, size } = examPageLocation(page)
+  const load = useCallback(async (signal: AbortSignal) => {
+    const result = await teacherExams(controller!, view, serverPage, signal)
+    if (result.currentPage !== serverPage || !examPagination(result, 1)) throw protocolError()
+    return result
+  }, [controller, view, serverPage])
   const query = useRemoteQuery(load)
-  const ordered = orderedExams(query.data?.data ?? [])
-  return <ListScreen data={ordered} keyExtractor={(exam) => String(exam.id)}
+  const result = query.data
+  const currentPagination = result && examPagination(result, page)
+  const current = currentPagination?.current
+  useEffect(() => {
+    if (!result || current === undefined) return
+    const { total, perPage, lastPage, currentPage } = result
+    setLastMeta({ total, perPage, lastPage, currentPage })
+    if (page !== current) setPage(current)
+  }, [result, page, current])
+  const pagination = currentPagination ?? (query.loading && lastMeta ? examPagination(lastMeta, page) : null)
+  const loading = query.loading || (!!currentPagination && page !== currentPagination.current)
+  const refresh = usePrivateRefresh(query.reload, loading)
+  const ordered = result && !loading ? examFeedRows(result, view).slice(offset, offset + size) : []
+
+  return <ListScreen data={ordered} keyExtractor={(exam) => String(exam.id)} refresh={refresh} scrollKey={page}
     ListHeaderComponent={<View style={s.section}>
-      <AppText variant="subtitle" accessibilityRole="header">Docencia</AppText>
-      <AppText style={s.muted}>Exámenes propios. Las colaboraciones se consultan por separado.</AppText>
-      <ActionButton secondary label="Mis colaboraciones autorizadas" onPress={onCollaborations} />
       <ExamFilters value={view} onChange={setView} />
-      <Notice tone="info" message="Horarios de America/La_Paz. El servidor determina estados y autorizaciones. Las copias locales se validan al abrirlas." />
-      <ActionButton secondary label="Actualizar exámenes" busy={query.loading} onPress={query.refresh} />
-      <QueryFeedback loading={query.loading} error={query.error} label="Consultando exámenes" retry={query.refresh} />
-      {query.data && <AppText variant="caption" style={s.muted}>Página {query.data.currentPage} de {query.data.lastPage} · {query.data.total} exámenes</AppText>}
+      <TextAction label="Mis colaboraciones" onPress={() => router.push('/(private)/collaborations')} />
+      <QueryFeedback loading={loading && !refresh.refreshing} error={query.error} label="Consultando exámenes" retry={refresh.onRefresh} />
     </View>}
-    ListEmptyComponent={!query.loading && !query.error && query.data
+    ListEmptyComponent={!loading && !query.error && result
       ? <EmptyState title="Sin exámenes en esta vista" message="Prueba otra vista o consulta tus colaboraciones." /> : undefined}
-    renderItem={({ item }) => <ExamCard exam={item} unlocked={unlocked} packages={packages}
-      onOpen={() => router.push(examDestination(item.id))}
-      onIncidents={() => router.push(examIncidentsDestination(item.id))} />}
-    ListFooterComponent={query.data ? <View style={s.section}>
-      <AppText variant="caption" style={s.muted}>Las funciones de incidencias requieren autorización móvil; el acceso se comprueba al consultarlas.</AppText>
-      <View style={s.pagination}>
-        <View style={s.pageButton}><ActionButton secondary label="Anterior" disabled={page <= 1 || query.loading} onPress={() => setPage(page - 1)} /></View>
-        <View style={s.pageButton}><ActionButton secondary label="Siguiente" disabled={page >= query.data.lastPage || query.loading} onPress={() => setPage(page + 1)} /></View>
-      </View>
-    </View> : undefined} />
+    renderItem={({ item }) => <ExamCard exam={item} unlocked={runtime !== null} packages={packages}
+      onOpen={() => router.push(examDestination(item.id))} />}
+    footer={pagination && pagination.pages > 1 ? <ExamPagination {...pagination}
+      busy={loading || refresh.refreshing} onPage={setPage} /> : undefined} />
 }
-const s = StyleSheet.create({
-  section: { gap: theme.spacing.md }, muted: { color: theme.colors.muted },
-  pagination: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.md },
-  pageButton: { flexBasis: 120, flexGrow: 1 },
-})
+
+const s = StyleSheet.create({ section: { gap: theme.spacing.md } })

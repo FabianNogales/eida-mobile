@@ -148,13 +148,18 @@ export class SessionController {
 
   async logout() {
     if (this.busy || !this.record) return
-    this.busy = true; this.cancelPrivate(); this.publish('initializing')
+    this.busy = true
+    const pending = { ...this.record, logoutPending: true }
+    this.record = pending
+    this.cancelPrivate()
+    // Invalidate synchronously, before any I/O. Logout is not a restoration:
+    // publishing initializing made the login route redirect back to /session.
+    this.publish('unauthenticated', 'Sesión local cerrada. Solicitando revocación remota…')
+    let savedPending = false
     try {
       await this.boundary('logout')
-      const pending = { ...this.record, logoutPending: true }
       await this.storage.save(pending)
-      this.record = pending
-      this.publish('unauthenticated', 'Sesión local cerrada. Solicitando revocación remota…')
+      savedPending = true
       if (pending.apiBase !== this.http.baseUrl) {
         this.publish('unauthenticated', 'La credencial pertenece a otro backend. Revócala desde ese servidor o EIDA Web; no se enviará a la URL actual.')
         return
@@ -169,15 +174,17 @@ export class SessionController {
       await this.storage.clear(); this.record = null
       this.publish('unauthenticated', 'Cierre de sesión confirmado por el servidor.')
     } catch (error) {
-      this.publish(this.record?.logoutPending ? 'unauthenticated' : 'recoverable-error',
-        this.record?.logoutPending ? 'Sesión local cerrada; no se confirmó la revocación remota. ' + errorMessage(error) :
-          'No se pudo guardar el cierre local. Reintenta antes de reiniciar la app. ' + errorMessage(error))
+      this.publish('unauthenticated', savedPending
+        ? 'Sesión local cerrada; no se confirmó la revocación remota. ' + errorMessage(error)
+        : 'No se pudo guardar el cierre local. Reintenta antes de reiniciar la app. No se confirmó la revocación remota. ' + errorMessage(error))
     } finally { this.busy = false; this.publish(this.state.status, this.state.message) }
   }
 
   async forgetLocal() {
     if (this.busy) return
-    this.busy = true; this.cancelPrivate(); this.publish('initializing')
+    this.busy = true
+    if (this.record) this.record = { ...this.record, logoutPending: true }
+    this.cancelPrivate(); this.publish('unauthenticated', 'Cerrando el acceso local…')
     try {
       await this.boundary('logout')
       await this.storage.clear(); this.record = null; this.loaded = true

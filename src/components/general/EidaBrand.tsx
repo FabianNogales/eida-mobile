@@ -7,8 +7,8 @@ import { EidaLogo } from './EidaLogo'
 export function EidaBrand() {
   return <View style={s.brand}>
     <EidaLogo />
-    <AppText variant="subtitle">EIDA Control</AppText>
-    <AppText variant="caption" style={s.caption}>Universidad Mayor de San Simón</AppText>
+    <AppText variant="title" accessibilityRole="header">EIDA Control</AppText>
+    <AppText style={s.caption}>Control de ingreso a exámenes</AppText>
   </View>
 }
-const s = StyleSheet.create({ brand: { gap: theme.spacing.xs }, caption: { color: theme.colors.muted } })
+const s = StyleSheet.create({ brand: { alignItems: 'center', gap: theme.spacing.md }, caption: { color: theme.colors.muted, textAlign: 'center' } })
