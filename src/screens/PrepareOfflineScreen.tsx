@@ -83,14 +83,15 @@ function Preparation({ examId }: { examId: string }) {
   const working = checking || downloading
   const binding = controller?.offlineBinding()
   const canPrepare = !!(authorized && runtime && binding && sameBinding(binding, runtime.repo.binding))
-  const start = async () => {
+  const start = async (resumeId?: string) => {
     if (work.current || !canPrepare || offline.busy) return
     work.current = true
     setRunning(true); setAttempted(false); setVerification(null)
     try {
-      await offline.download(examId, latest?.state === 'INCOMPLETA' ? latest.id : undefined)
+      await offline.download(examId, resumeId)
     } finally { work.current = false; setAttempted(true); setRunning(false) }
   }
+  const incomplete = latest?.state === 'INCOMPLETA' ? latest : undefined
   const heading = context ? examHeading(context.exam) : null
   const color = tones[state.tone]
   return <Screen>
@@ -118,10 +119,17 @@ function Preparation({ examId }: { examId: string }) {
         : state.ready && checked ? <>
           <ActionButton label="Ir al control de ingreso" icon={<ExamIcon name="qr" color={theme.colors.onPrimary} />}
             disabled={offline.busy} onPress={() => router.push(listDestination(checked.id))} />
-          <TextAction label={latest?.state === 'INCOMPLETA' ? 'Reintentar preparación' : 'Preparar una copia nueva'}
+          <TextAction label="Preparar una copia nueva"
             disabled={!canPrepare || offline.busy} onPress={() => { void start() }} />
-        </> : <ActionButton label={attempted || latest?.state === 'INCOMPLETA' ? 'Reintentar preparación' : 'Preparar lista'}
-          busy={running} disabled={checking || !canPrepare || offline.busy} onPress={() => { void start() }} />)}
+          {incomplete && <TextAction label="Reanudar descarga anterior"
+            disabled={!canPrepare || offline.busy} onPress={() => { void start(incomplete.id) }} />}
+        </> : <>
+          <ActionButton label={incomplete ? 'Reanudar descarga anterior' : attempted ? 'Reintentar preparación' : 'Preparar lista'}
+            busy={running} disabled={checking || !canPrepare || offline.busy}
+            onPress={() => { void start(incomplete?.id) }} />
+          {incomplete && <TextAction label="Preparar una copia nueva"
+            disabled={working || !canPrepare || offline.busy} onPress={() => { void start() }} />}
+        </>)}
       {authorized && !!runtime && !canPrepare && !state.ready && <Notice message="Valida tu sesión con conexión para preparar la lista." />}
     </>}
   </Screen>

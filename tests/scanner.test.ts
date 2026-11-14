@@ -6,9 +6,12 @@ import { QrScanSession } from '../src/features/scanner/scanSession'
 import { PackageDownloader } from '../src/features/offline/download'
 import { captureProvisional } from '../src/features/offline/identity'
 import { OutboxRepository } from '../src/features/offline/sync/outbox'
+import { OfflineSyncController } from '../src/features/offline/sync/controller'
+import { parseEnvelope } from '../src/features/offline/manifest'
 import type { Manifest } from '../src/features/offline/contracts'
 import type { Rs256Provider } from '../src/features/qr/contracts'
 import { anchor, binding, digest, envelope, harnessOffline, manifest, mockApi, packageId, provider, sample } from './support/offlineFixtures'
+import { ack, at, capabilities, sequence } from './support/syncFixtures'
 
 const valid = vectors.cases[0]!.token
 const uuid = 'a3a0ef87-356b-4cb9-a49e-a7ce319e2772'
@@ -242,6 +245,54 @@ test('camera capture feeds the existing HU37 outbox without rewriting evidence o
   await restarted.reconcile()
   assert.deepEqual(await restarted.pending(), pending)
   assert.deepEqual(await h.repo.event('42', '101'), event)
+})
+
+test('a new preparation enables the Laravel QR and HU37 sends both copies with their original package IDs', async (t) => {
+  const previous = manifest()
+  previous.qr = { available: false, reason: 'PRODUCTION_QR_V3_NOT_CONFIRMED',
+    issuer: null, audience: null, keys: [], revoked_jtis: null }
+  previous.students.push({ ...previous.students[0]!, student_id: '102', sis_code: '203000102', identity_number: 'CI-102' })
+  const h = await setup(t, previous)
+  assert.equal(h.session.state.phase, 'blocked')
+  const manual = await captureProvisional(h.repo, previous.package_id, '102', 'MANUAL', sample, () => uuid, provider)
+
+  const nextId = '01234567-89ab-4cde-8f01-23456789abce'
+  const next = manifest({ package_id: nextId, authorization_id: nextId, students: previous.students })
+  const downloaded = parseEnvelope({ data: { mobile: envelope(next) } }, digest)
+  const api = { ...mockApi(next), package: async () => ({ ...downloaded, serverTime: next.server_time }) }
+  await new PackageDownloader(api, h.repo, { sample: async () => sample }, async () => {}).run(next.exam_id)
+  assert.equal((await h.repo.package(previous.package_id)).active, false)
+  assert.equal((await h.repo.usable(nextId, sample)).manifest.qr.available, true)
+
+  const nextEventId = 'a3a0ef87-356b-4cb9-a49e-a7ce319e2773'
+  const session = new QrScanSession(nextId, {
+    repo: h.repo, digest, provider, uuid: () => nextEventId, sample: async () => sample, check: () => {},
+    photoUri: async () => { throw new Error('Laboratory students have no photos') },
+  })
+  await session.revalidate()
+  assert.equal(await session.detect(start(session), { type: 'qr', data: valid }), true)
+  assert.equal(session.state.phase, 'review')
+  assert.equal(await h.repo.pendingCount(), 1)
+  const qr = await session.confirm()
+  assert.ok(qr)
+  assert.equal(qr.local_status, 'PENDING_SYNC')
+  assert.equal(await h.repo.pendingCount(), 2)
+
+  const outbox = new OutboxRepository(h.connection, binding, digest)
+  const delivered = new Map<string, string>()
+  const controller = new OfflineSyncController(outbox, {
+    capabilities: async () => ({ ...capabilities, qrVersions: [2, 3] }),
+    send: async (_exam, batch) => batch.events.map((event) => {
+      delivered.set(event.event_id, batch.package_id)
+      if (event.event_id === qr.event_id) assert.ok(event.qr_token === valid)
+      return ack(event)
+    }),
+  }, sequence(), () => binding, () => at)
+  await controller.sync()
+  assert.equal(delivered.get(manual.event_id), previous.package_id)
+  assert.equal(delivered.get(qr.event_id), nextId)
+  assert.equal(await h.repo.pendingCount(), 0)
+  assert.equal((await outbox.items()).find((row) => row.eventId === qr.event_id)?.receipt?.status, 'ACCEPTED')
 })
 test('incomplete or stale packages cannot mount an armed scanner or accept detection', async (t) => {
   const h = await setup(t)
