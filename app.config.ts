@@ -22,6 +22,11 @@ const config: ExpoConfig = {
     ['expo-splash-screen', { backgroundColor: '#172554' }],
   ],
   experiments: { typedRoutes: false },
+  extra: {
+    eas: {
+      projectId: '83b0510a-9059-4a69-b339-7414a09afa64',
+    },
+  },
 }
 export default config
 
