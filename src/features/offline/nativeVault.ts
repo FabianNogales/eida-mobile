@@ -11,7 +11,7 @@ import { SerializedSql, type RawSqlPort } from './serializedSql'
 import { OutboxRepository } from './sync/outbox'
 import { IncidentRepository } from '../incidents/repository'
 import { OfflineProtectionError, protectedKey, protectedOperation } from './protection'
-import { checkOfflineGrant, checkPreviousVault, checkVaultSession, onlineGrant, vaultStorage, type VaultGrant } from './vaultAccess'
+import { checkOfflineGrant, checkPreviousVault, checkVaultSession, localGrantProfile, onlineGrant, vaultStorage, type LocalProfile, type VaultGrant } from './vaultAccess'
 
 const options: SecureStore.SecureStoreOptions = { keychainService: vaultStorage.keychainService,
   keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY, requireAuthentication: vaultStorage.requireAuthentication }
@@ -20,6 +20,7 @@ export interface VaultRuntime {
   repo: OfflineRepository; digest: Digest; uuid(): string; provider: Rs256Provider
   outbox: OutboxRepository
   incidents: IncidentRepository
+  profile?: LocalProfile | null
   validateKeys(manifest: Manifest): Promise<void>; check(): void
 }
 
@@ -55,7 +56,7 @@ export class NativeOfflineVault {
     } finally { await closing }
     // Never delete database, protected keys or pending events.
   }
-  async open(online: OfflineBinding | undefined, onExpire: () => void): Promise<VaultRuntime> {
+  async open(online: OfflineBinding | undefined, onExpire: () => void, profile?: LocalProfile): Promise<VaultRuntime> {
     if (this.opening) throw new Error('La apertura local ya está en curso.')
     this.opening = true
     let db: SqlPort | null = null
@@ -88,6 +89,10 @@ export class NativeOfflineVault {
       const sample = await nativeClock.sample()
       const grant = online ? onlineGrant(binding, credential, sample, wallStart, stored) : stored
       deadline = clockStart + checkOfflineGrant(grant, credential, sample)
+      if (online && grant && profile && String(profile.id) === binding.userId) {
+        const { id, display_name, email, roles } = profile
+        grant.profile = { id, display_name, email, roles }
+      }
       check()
       const module = await import('react-native-quick-crypto'), crypto = module.default
       const digest: Digest = (data) => crypto.createHash('sha256').update(typeof data === 'string' ? module.Buffer.from(data, 'utf8') : module.Buffer.from(data)).digest('hex')
@@ -121,7 +126,7 @@ export class NativeOfflineVault {
       const repo = new OfflineRepository(db, binding, digest, check)
       const incidents = new IncidentRepository(db, repo, digest, check)
       await incidents.recoverInterrupted()
-      const runtime: VaultRuntime = { repo, outbox, incidents, digest,
+      const runtime: VaultRuntime = { repo, outbox, incidents, digest, profile: localGrantProfile(grant, binding),
         uuid: () => crypto.randomUUID(), provider, check,
         async validateKeys(manifest) {
           if (!manifest.qr.available) return

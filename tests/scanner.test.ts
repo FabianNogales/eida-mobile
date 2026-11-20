@@ -119,7 +119,7 @@ test('opening the scanner directly cannot start the camera when the list has no 
   m.qr = { available: false, reason: null, issuer: null, audience: null, keys: [], revoked_jtis: null }
   const h = await setup(t, m)
   assert.equal(h.session.state.phase, 'blocked')
-  expectError(h.session, /no incluye claves públicas/)
+  expectError(h.session, /no permite verificar códigos QR sin conexión/)
   h.session.cameraAccess(true)
   assert.equal(h.session.start(), false)
   assert.equal(await h.session.detect(0, { type: 'qr', data: valid }), false)

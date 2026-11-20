@@ -69,3 +69,6 @@ export function listDestination(packageId: string, search = false) {
   return { pathname: '/offline/list' as const, params: { packageId, ...(search ? { focusSearch: '1' } : {}) } }
 }
 export function scanDestination(packageId: string) { return { pathname: '/offline/scan' as const, params: { packageId } } }
+export function localExamDestination(examId: string) {
+  return { pathname: '/(private)/offline-distribution' as const, params: { examId } }
+}

@@ -3,6 +3,8 @@ import { View, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
 import { EmptyState } from '../components/FeedbackStates'
 import { ListScreen } from '../components/ListScreen'
+import { Screen } from '../components/Screen'
+import { LocalExams } from '../components/control/LocalExams'
 import { TextAction } from '../components/general/TextAction'
 import { ExamCard } from '../components/general/ExamCard'
 import { ExamFilters } from '../components/general/ExamFilters'
@@ -10,7 +12,7 @@ import { ExamPagination } from '../components/general/ExamPagination'
 import { QueryFeedback } from '../components/general/QueryFeedback'
 import { theme } from '../config/theme'
 import { useAuth } from '../features/auth/AuthProvider'
-import { canAccessPrivate } from '../features/auth/guards'
+import { useNetwork } from '../features/connectivity/NetworkProvider'
 import { teacherExams, type ExamPage, type ExamView } from '../features/exams/api'
 import { useOffline } from '../features/offline/OfflineProvider'
 import { usePrivateRefresh } from '../hooks/usePrivateRefresh'
@@ -21,14 +23,17 @@ import { examDestination } from '../ui/generalScreens'
 
 export function ExamsScreen() {
   const { session } = useAuth()
+  const { access } = useOffline()
   const [view, setView] = useState<ExamView>('upcoming')
-  return canAccessPrivate(session) ? <ExamFeed key={`${session.user?.id}:${view}`} view={view} setView={setView} /> : null
+  if (access === 'local-session') return <Screen><LocalExams /></Screen>
+  return access === 'online-session' ? <ExamFeed key={`${session.user?.id}:${view}`} view={view} setView={setView} /> : null
 }
 
 function ExamFeed({ view, setView }: { view: ExamView; setView(view: ExamView): void }) {
   const router = useRouter()
   const { controller } = useAuth()
   const { runtime, packages } = useOffline()
+  const network = useNetwork()
   const [page, setPage] = useState(1)
   const [lastMeta, setLastMeta] = useState<Pick<ExamPage, 'total' | 'perPage' | 'lastPage' | 'currentPage'> | null>(null)
   const { serverPage, offset, size } = examPageLocation(page)
@@ -57,6 +62,7 @@ function ExamFeed({ view, setView }: { view: ExamView; setView(view: ExamView): 
       <ExamFilters value={view} onChange={setView} />
       <TextAction label="Mis colaboraciones" onPress={() => router.push('/(private)/collaborations')} />
       <QueryFeedback loading={loading && !refresh.refreshing} error={query.error} label="Consultando exámenes" retry={refresh.onRefresh} />
+      {(query.error || network === 'offline') && <LocalExams />}
     </View>}
     ListEmptyComponent={!loading && !query.error && result
       ? <EmptyState title="Sin exámenes en esta vista" message="Prueba otra vista o consulta tus colaboraciones." /> : undefined}

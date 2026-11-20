@@ -18,11 +18,10 @@ import { TextAction } from '../components/general/TextAction'
 import { StatusBadge } from '../components/StatusBadge'
 import { theme } from '../config/theme'
 import { useOffline } from '../features/offline/OfflineProvider'
-import { useAuth } from '../features/auth/AuthProvider'
 import { nativeClock, anchoredNow } from '../features/offline/clock'
 import { captureProvisional, identifyQr } from '../features/offline/identity'
 import type { OfflineStudent, PackageRecord, ProvisionalEvent } from '../features/offline/contracts'
-import { manualAvailability, packageViewAllowed, scanDestination, searchPageMatches } from '../ui/controlScreens'
+import { localExamDestination, manualAvailability, packageViewAllowed, scanDestination, searchPageMatches } from '../ui/controlScreens'
 import { scanIssue } from '../ui/entryPresentation'
 import { briefExamStatus, examHeading } from '../ui/examPresentation'
 import { laPazInstant } from '../utils/dates'
@@ -33,7 +32,7 @@ export function OfflineListScreen() {
   return <LocalList key={packageId} packageId={packageId} focusSearch={params.focusSearch === '1'} />
 }
 function LocalList({ packageId, focusSearch }: { packageId: string; focusSearch: boolean }) {
-  const offline = useOffline(), { session } = useAuth(), router = useRouter(), r = offline.runtime
+  const offline = useOffline(), router = useRouter(), r = offline.runtime
   const viewScope = useRef(r), work = useRef(false), mounted = useRef(true)
   const pageScope = useRef<{ runtime: typeof r; term: string; offset: number } | null>(null)
   const searchInput = useRef<TextInputHandle | null>(null), refreshing = useRef(false)
@@ -165,16 +164,27 @@ function LocalList({ packageId, focusSearch }: { packageId: string; focusSearch:
   const closeDetail = () => { setSelected(null); setPhotos([]); setEvent(null); setToken(''); setError(null); setStep('student') }
   const openScan = () => { Keyboard.dismiss(); closeDetail(); router.push(scanDestination(packageId)) }
   const openIncident = () => { Keyboard.dismiss(); closeDetail(); router.push({ pathname: '/offline/report-incident', params: { packageId } }) }
-  if (!r) return <Screen><OfflineAccessStatus loadingLabel="Abriendo tu lista" /></Screen>
+  const navigation = (examId?: string) => <>
+    {examId && <TextAction label="Volver al detalle del examen" disabled={busy}
+      onPress={() => router.dismissTo(localExamDestination(examId))} />}
+    <View style={s.pagination}>
+      <TextAction label="Exámenes" disabled={busy} onPress={() => router.dismissTo('/(private)/(tabs)/exams')} />
+      <TextAction label="Pendientes" disabled={busy} onPress={() => router.dismissTo('/(private)/(tabs)/pending')} />
+      <TextAction label="Perfil" disabled={busy} onPress={() => router.dismissTo('/(private)/(tabs)/profile')} />
+    </View>
+  </>
+  if (!r) return <Screen><OfflineAccessStatus loadingLabel="Abriendo tu lista" />{navigation()}</Screen>
   if (blocked && currentState) return <Screen><Notice message={currentState.state === 'VENCIDO' ? 'La lista venció. Prepara una copia vigente.'
     : currentState.state === 'INCOMPLETA' || currentState.state === 'DESCARGANDO' ? 'La preparación de esta lista está incompleta.'
       : currentState.state === 'DESACTUALIZADO' ? 'Esta copia ya no está autorizada para el control. Revisa su estado con conexión.'
       : 'Esta copia requiere revisión antes de abrir la lista.'} />
-    <ActionButton label="Ver paquetes y estado" onPress={() => router.replace('/offline')} /></Screen>
+    <ActionButton label="Ver paquetes y estado" onPress={() => router.replace('/offline')} />
+    {navigation(currentState.examId)}</Screen>
   if (!visible || !p) return <Screen>
     {error ? <Notice tone="error" message={error} /> : <LoadingState label="Comprobando tu lista" />}
     <ActionButton secondary label="Reintentar consulta local" disabled={loading} onPress={() => setRevision((v) => v + 1)} />
     <ActionButton secondary label="Ver paquetes y estado" onPress={() => router.push('/offline')} />
+    {navigation(currentState?.examId)}
   </Screen>
   const settled = term === searchTerm
   const rowsVisible = searchPageMatches(pageScope.current, r, term, searchTerm, offset)
@@ -195,9 +205,9 @@ function LocalList({ packageId, focusSearch }: { packageId: string; focusSearch:
             <AppText variant="caption" style={s.muted}>{count} estudiantes en tu lista</AppText></View>
           <View style={s.badges}>
             {p.manifest.exam.status && <StatusBadge {...briefExamStatus(p.manifest.exam.status)} />}
-            {session.status === 'offline' && <StatusBadge label="Sin conexión" tone="warning" />}
           </View>
         </View>
+        {navigation(p.examId)}
         <ActionButton label="Escanear QR" icon={<ExamIcon name="qr" color={theme.colors.onPrimary} />}
            disabled={busy || refresh.refreshing || qrBlock !== null} onPress={openScan} />
          {qrBlock && <AppText variant="caption" style={s.muted}>{qrBlock} Usa la búsqueda manual.</AppText>}
@@ -222,9 +232,9 @@ function LocalList({ packageId, focusSearch }: { packageId: string; focusSearch:
             onPress={() => setOffset(offset + 50)} /></View>
         </View>}
         {offset > 0 && <AppText variant="caption">Página {Math.floor(offset / 50) + 1}</AppText>}
-         {!qrBlock && <TextAction label={showExternal ? 'Ocultar lector externo' : 'Usar lector externo'} disabled={busy || loading || !settled}
+         {__DEV__ && !qrBlock && <TextAction label={showExternal ? 'Ocultar lector externo' : 'Usar lector externo'} disabled={busy || loading || !settled}
           onPress={() => { setShowExternal(!showExternal); setToken('') }} />}
-         {!qrBlock && showExternal && <><FormField label="Contenido QR de un lector externo" value={token} maxLength={4096} editable={!busy && !loading && settled} onChangeText={setToken}
+         {__DEV__ && !qrBlock && showExternal && <><FormField label="Contenido QR de un lector externo" value={token} maxLength={4096} editable={!busy && !loading && settled} onChangeText={setToken}
           autoCapitalize="none" autoCorrect={false} multiline hint="Este contenido no identifica a nadie hasta superar la verificación existente." />
         <ActionButton secondary label="Verificar QR e identificar" disabled={!token || busy || loading || !settled} onPress={() => { void action(async () => {
           const pkg = await r.repo.usable(packageId, await nativeClock.sample())

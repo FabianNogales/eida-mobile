@@ -32,6 +32,22 @@ export function OfflineDistributionScreen() {
   return <DistributionView key={String(session.user?.id) + ':' + examId} examId={examId} />
 }
 function DistributionView({ examId }: { examId: string }) {
+  const { access, usablePackages } = useOffline()
+  const { push } = useRouter()
+  if (access === 'local-session') {
+    const copy = usablePackages.find((item) => item.examId === examId)
+    return <Screen>
+      {copy ? <>
+        <ExamHero exam={copy.manifest.exam} relation="Mi lista" />
+        <Notice message="Detalle de tu copia descargada. Las acciones del servidor requieren conexión." />
+        <ActionButton label="Controlar ingreso" onPress={() => push(listDestination(copy.id))} />
+      </> : <Notice message="Este examen no tiene una copia local vigente." />}
+    </Screen>
+  }
+  return <RemoteDistributionView examId={examId} />
+}
+
+function RemoteDistributionView({ examId }: { examId: string }) {
   const { controller } = useAuth(), offline = useOffline(), router = useRouter()
   const [preparing, setPreparing] = useState(false), [prepareError, setPrepareError] = useState<string | null>(null)
   const [distribution, setDistribution] = useState(false), [actions, setActions] = useState(false)
@@ -66,10 +82,16 @@ function DistributionView({ examId }: { examId: string }) {
     !!controller?.offlineBinding(), offline.busy) : null
   const extras = examExtraActions(c?.exam.id ?? 0, permissions.loading || permissions.error ? null : permissions.data)
   const local = view?.local, latest = view?.latest
+  const cached = !c && offline.runtime ? offline.usablePackages.find((item) => item.examId === examId) : undefined
   return <Screen refresh={refresh}>
     <QueryFeedback loading={query.loading && !refresh.refreshing} error={query.error} label="Consultando examen" retry={refresh.onRefresh} />
     {prepareError && <Notice tone="error" message={prepareError} />}
     {offline.error && <Notice tone="error" message={offline.error} />}
+    {cached && <>
+      <ExamHero exam={cached.manifest.exam} relation="Mi lista" />
+      <Notice message="Detalle de tu copia descargada." />
+      <ActionButton label="Controlar ingreso" onPress={() => router.push(listDestination(cached.id))} />
+    </>}
     {c && view && <>
       <ExamHero exam={c.exam} relation={view.relation} />
       {c.stale && <Notice message="La distribución cambió. Tu lista requiere revisión antes de continuar." />}

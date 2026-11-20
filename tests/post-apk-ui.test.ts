@@ -25,12 +25,13 @@ function attribute(props: ts.JsxAttributes, name: string) {
 test('root retains Protected and chooses login as its anchor; private layout never dispatches its own redirect', () => {
   const root = source('app/_layout.tsx'), privateLayout = source('app/(private)/_layout.tsx')
   assert.match(root.text, /initialRouteName: 'login'/)
-  const guard = attributes(root, 'Stack.Protected')[0]
+  const guard = attributes(root, 'Stack.Protected').find((props) =>
+    attribute(props, 'guard')?.initializer?.getText(root) === "{access !== 'blocked'}")
   assert.ok(guard)
-  assert.equal(attribute(guard, 'guard')?.initializer?.getText(root), '{canAccessPrivate(session)}')
+  assert.match(root.text, /<Stack.Protected guard=\{access !== 'blocked'\}>\s*<Stack.Screen name="offline"[\s\S]*?<Stack.Screen name="\(private\)"/)
   assert.match(root.text, /name="\(private\)"/)
   assert.equal(attributes(privateLayout, 'Redirect').length, 0)
-  assert.match(privateLayout.text, /if \(!canAccessPrivate\(session\)\) return null/)
+  assert.match(privateLayout.text, /if \(access === 'blocked'\) return null/)
   assert.doesNotMatch(source('screens/ProfileScreen.tsx').text, /router\.(?:replace|push)\(['"]\/login/)
 })
 

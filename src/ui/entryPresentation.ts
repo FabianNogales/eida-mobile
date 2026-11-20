@@ -60,8 +60,7 @@ export function scanIssue(message: string) {
   if (message.includes('no pertenece a tu lista')) return 'El estudiante no pertenece a tu lista.'
   if (message.includes('ya informaba un ingreso')) return 'La copia ya registra un ingreso para este estudiante.'
   if (message.includes('QR v2')) return 'Este QR v2 no se puede verificar sin conexión. Usa la búsqueda manual.'
-  if (message.includes('UNKNOWN_KID')) return 'La lista no incluye la clave pública de este QR. Usa la búsqueda manual.'
-  if (/CRYPTO_UNAVAILABLE|CONTEXT_INVALID|no ofrece QR v3/.test(message)) {
+  if (/UNKNOWN_KID|CRYPTO_UNAVAILABLE|CONTEXT_INVALID|no ofrece QR v3/.test(message)) {
     return 'Este QR no se puede verificar sin conexión. Usa la búsqueda manual.'
   }
   if (/^QR rechazado:|^QR malformado/.test(message)) return 'El QR no es válido. Escanea otro código o busca al estudiante.'

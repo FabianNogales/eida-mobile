@@ -3,11 +3,13 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { theme } from '../config/theme'
 import { AppText } from './AppText'
 import { EidaLogo } from './general/EidaLogo'
+import { ConnectionIndicator } from './ConnectionIndicator'
 
 export function MainHeader({ title, compact = false }: { title: string; compact?: boolean }) {
   return <SafeAreaView edges={['top', 'left', 'right']} style={styles.header}>
     <View style={[styles.row, compact && styles.compact]}><EidaLogo compact decorative />
       <AppText variant="subtitle" accessibilityRole="header" style={[styles.title, compact && styles.compactTitle]}>{title}</AppText>
+      <ConnectionIndicator />
     </View>
   </SafeAreaView>
 }
@@ -16,6 +18,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.md,
     paddingHorizontal: theme.spacing.xl, paddingVertical: theme.spacing.md, width: '100%',
     maxWidth: theme.layout.contentMaxWidth, alignSelf: 'center' },
-  title: { textAlign: 'center' },
+  title: { textAlign: 'center', flex: 1 },
   compact: { justifyContent: 'flex-start' }, compactTitle: { textAlign: 'left', flexShrink: 1 },
 })

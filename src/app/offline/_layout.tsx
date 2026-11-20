@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router'
-import { stackScreenOptions } from '../../navigation/options'
+import { nativeStackScreenOptions } from '../../navigation/nativeOptions'
 export default function OfflineLayout() {
-  return <Stack screenOptions={stackScreenOptions}>
+  return <Stack screenOptions={nativeStackScreenOptions}>
     <Stack.Screen name="index" options={{ title: 'Paquetes protegidos' }} />
     <Stack.Screen name="list" options={{ title: 'Control de ingreso' }} />
     <Stack.Screen name="scan" options={{ title: 'Escanear QR' }} />

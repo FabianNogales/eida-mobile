@@ -1,4 +1,4 @@
-import type { StoredSession } from '../auth/contracts'
+import type { CurrentUser, StoredSession } from '../auth/contracts'
 import { instant } from '../../utils/dates'
 import { anchoredNow } from './clock'
 import { sameBinding, type ClockSample, type OfflineBinding, type TimeAnchor } from './contracts'
@@ -21,6 +21,17 @@ export interface VaultGrant {
   binding: OfflineBinding
   expiresAt: string
   anchor: TimeAnchor
+  profile?: LocalProfile
+}
+
+export type LocalProfile = Pick<CurrentUser, 'id' | 'display_name' | 'email' | 'roles'>
+
+export function localGrantProfile(grant: VaultGrant | null, binding: OfflineBinding): LocalProfile | null {
+  const profile = grant?.profile
+  if (!grant || !sameBinding(grant.binding, binding) || !profile || String(profile.id) !== binding.userId || typeof profile.display_name !== 'string' ||
+      typeof profile.email !== 'string' || !Array.isArray(profile.roles) ||
+      !profile.roles.every((role) => typeof role === 'string')) return null
+  return profile
 }
 
 export function checkVaultSession(credential: StoredSession | null, binding: OfflineBinding): asserts credential is StoredSession {

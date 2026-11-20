@@ -7,6 +7,17 @@ import type { OfflineBinding } from '../offline/contracts'
 
 export type SecurityBoundary = 'expired' | 'revoked' | 'logout' | 'account-change'
 
+function sameCredential(a: StoredSession | null, b: StoredSession | null) {
+  return a === b || (!!a && !!b && a.apiBase === b.apiBase && a.userId === b.userId &&
+    a.deviceId === b.deviceId && a.installationId === b.installationId && a.token === b.token &&
+    a.expiresAt === b.expiresAt && a.serverOffsetMs === b.serverOffsetMs && a.logoutPending === b.logoutPending)
+}
+
+function isRevoked(error: ApiError) {
+  return error.status === 401 || error.code === 'PASSWORD_CHANGE_REQUIRED' ||
+    error.code === 'ACCOUNT_INACTIVE' || error.code === 'MOBILE_DEVICE_REVOKED'
+}
+
 export class SessionController {
   private record: StoredSession | null = null
   private actor: CurrentUser | null = null
@@ -66,9 +77,11 @@ export class SessionController {
     this.actor = user
     this.publish('authenticated')
   }
-  private async authFailure(error: unknown) {
-    if (error instanceof ApiError && (error.status === 401 || error.code === 'PASSWORD_CHANGE_REQUIRED')) {
+  private async authFailure(error: unknown, previous?: 'authenticated' | 'offline') {
+    if (error instanceof ApiError && isRevoked(error)) {
       await this.invalidate(error.message)
+    } else if (previous && error instanceof ApiError && (error.status ?? 0) >= 500) {
+      this.publish(previous, error.message)
     } else {
       this.cancelPrivate()
       this.publish(error instanceof ApiError && ['network', 'timeout'].includes(error.kind) ? 'offline' : 'recoverable-error', errorMessage(error))
@@ -77,9 +90,25 @@ export class SessionController {
 
   async restore() {
     if (this.busy) return
-    this.busy = true; this.loaded = false; this.cancelPrivate(); this.publish('initializing')
+    const previous = this.state.status
+    let checked: 'authenticated' | 'offline' | undefined
+    const retaining = (previous === 'authenticated' || previous === 'offline') &&
+      !this.record?.logoutPending && this.remainingMs() > 0
+    this.busy = true; this.loaded = false; this.cancelPrivate()
+    this.publish(retaining ? previous : 'initializing')
     try {
-      this.record = await this.storage.load()
+      const stored = await this.storage.load()
+      if (previous === 'authenticated' || previous === 'offline') {
+        if (stored && sameCredential(this.record, stored)) {
+          if (retaining) checked = previous
+        }
+        else {
+          this.cancelPrivate()
+          this.publish('initializing')
+          await this.boundary('account-change')
+        }
+      }
+      this.record = stored
       this.loaded = true
       if (!this.record) this.publish('unauthenticated')
       else if (this.record.apiBase !== this.http.baseUrl) {
@@ -87,7 +116,7 @@ export class SessionController {
       } else if (this.record.logoutPending) this.publish('unauthenticated', 'Sesión local cerrada. La revocación remota sigue pendiente.')
       else if (this.remainingMs() <= 0) await this.invalidate('La credencial alcanzó su vencimiento. Inicia sesión nuevamente.', 'expired')
       else await this.validate()
-    } catch (error) { await this.authFailure(error) }
+    } catch (error) { await this.authFailure(error, checked) }
     finally { this.busy = false; this.publish(this.state.status, this.state.message) }
   }
 
@@ -131,13 +160,7 @@ export class SessionController {
       if (epoch !== this.epoch) throw new ApiError('cancelled', 'La sesión cambió. Se descartó la respuesta anterior.')
       return data
     } catch (error) {
-      if (epoch === this.epoch && error instanceof ApiError) {
-        if (error.status === 401 || error.code === 'PASSWORD_CHANGE_REQUIRED') await this.invalidate(error.message)
-        else if (['network', 'timeout'].includes(error.kind) || (error.status ?? 0) >= 500) {
-          this.cancelPrivate()
-          this.publish(['network', 'timeout'].includes(error.kind) ? 'offline' : 'recoverable-error', error.message)
-        }
-      }
+      if (epoch === this.epoch && error instanceof ApiError && isRevoked(error)) await this.invalidate(error.message)
       throw error
     }
   }

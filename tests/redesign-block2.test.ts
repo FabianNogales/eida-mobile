@@ -106,8 +106,8 @@ test('scanner messages distinguish invalid, unverifiable and wrong-exam QR witho
 test('a usable list needs the server flag and verification material to offer offline QR', () => {
   const { qr } = manifest()
   assert.equal(offlineQrBlock(qr), null)
-  assert.match(offlineQrBlock({ ...qr, available: false, reason: 'PRODUCTION_QR_V3_NOT_CONFIRMED' }) ?? '', /no anunció QR v3/)
-  assert.match(offlineQrBlock({ ...qr, keys: [] }) ?? '', /claves públicas/)
+  assert.match(offlineQrBlock({ ...qr, available: false, reason: 'PRODUCTION_QR_V3_NOT_CONFIRMED' }) ?? '', /escaneo sin conexión no está disponible/)
+  assert.match(offlineQrBlock({ ...qr, keys: [] }) ?? '', /no permite verificar códigos QR/)
   assert.match(offlineQrBlock({ ...qr, audience: null }) ?? '', /no está habilitada/)
   assert.match(offlineQrBlock({ ...qr, available: false, reason: 'PRIVATE_SERVER_DETAIL' }) ?? '', /^La verificación/)
 })

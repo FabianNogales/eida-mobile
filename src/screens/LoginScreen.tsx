@@ -16,9 +16,11 @@ import { useAuth } from '../features/auth/AuthProvider'
 import { loginPresentation } from '../ui/generalScreens'
 import { loginFields } from '../features/auth/loginFeedback'
 import { ExamIcon } from '../components/general/ExamIcon'
+import { useOffline } from '../features/offline/OfflineProvider'
 
 export function LoginScreen() {
   const { session, controller } = useAuth()
+  const { access } = useOffline()
   const router = useRouter()
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
@@ -29,6 +31,7 @@ export function LoginScreen() {
   const passwordInput = useRef<TextInputHandle | null>(null)
   const view = loginPresentation(session, controller !== null)
   const fields = loginFields(identifier, password)
+  if (access === 'local-session') return <Redirect href="/(private)" />
   if (view.destination) return <Redirect href={view.destination} />
   const submit = () => {
     if (view.disabled || !controller) return
@@ -63,8 +66,7 @@ export function LoginScreen() {
     {more && <View style={s.form}>
       <TextAction label="¿Problemas para ingresar?" onPress={() => Alert.alert('Ayuda para ingresar',
         'Utiliza tu cuenta institucional. Si tienes una contraseña inicial, cámbiala en EIDA Web. Si la cuenta está inactiva o no tienes una asignación vigente, consulta con la administración.')} />
-      <ActionButton secondary label="Abrir mis paquetes offline" onPress={() => router.push('/offline')} />
-      <TextAction label="Diagnóstico QR v3 · desarrollo" onPress={() => router.push('/qr-diagnostics')} />
+      {__DEV__ && <TextAction label="Diagnóstico QR v3 · desarrollo" onPress={() => router.push('/qr-diagnostics')} />}
     </View>}
     {session.logoutPending && <Card>
       <AppText variant="subtitle">Cierre pendiente de confirmación</AppText>

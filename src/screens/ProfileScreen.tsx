@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 import Constants from 'expo-constants'
 import { useRouter } from 'expo-router'
@@ -7,19 +7,17 @@ import { ActionButton } from '../components/ActionButton'
 import { AppText } from '../components/AppText'
 import { Card } from '../components/Card'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { Notice } from '../components/Notice'
 import { StatusBadge } from '../components/StatusBadge'
 import { IdentityBlock } from '../components/general/IdentityBlock'
 import { ExamIcon, type ExamIconName } from '../components/general/ExamIcon'
-import { QueryFeedback } from '../components/general/QueryFeedback'
 import { OperationDetails } from '../components/operations/OperationDetails'
 import { theme } from '../config/theme'
 import { useAuth } from '../features/auth/AuthProvider'
-import type { CurrentUser } from '../features/auth/contracts'
-import { canAccessPrivate } from '../features/auth/guards'
-import { devices } from '../features/exams/api'
 import { useOffline } from '../features/offline/OfflineProvider'
-import { useRemoteQuery } from '../hooks/useRemoteQuery'
-import { usePrivateRefresh } from '../hooks/usePrivateRefresh'
+import type { LocalProfile } from '../features/offline/vaultAccess'
+import { useNetwork } from '../features/connectivity/NetworkProvider'
+import { connectionLabels } from '../features/connectivity/state'
 import { logoutConfirmation } from '../ui/generalScreens'
 import { pendingSummary } from '../ui/pendingSummary'
 import { useQueueReadiness } from '../ui/useQueueReadiness'
@@ -35,31 +33,34 @@ const institutionalRoles = new Map([
 
 export function ProfileScreen() {
   const { session } = useAuth()
-  return session.user && canAccessPrivate(session) ? <AccountProfile key={session.user.id} user={session.user} /> : null
+  const { access, runtime } = useOffline()
+  if (access !== 'online-session' && access !== 'local-session') return null
+  const profile = access === 'online-session' ? session.user : runtime?.profile
+  return <AccountProfile key={profile?.id ?? runtime?.repo.binding.userId} user={profile ?? null} />
 }
 
-function AccountProfile({ user }: { user: CurrentUser }) {
+function AccountProfile({ user }: { user: LocalProfile | null }) {
   const { session, controller } = useAuth(), router = useRouter()
   const offline = useOffline()
+  const network = useNetwork()
+  const onlineActions = offline.access === 'online-session' && network !== 'offline'
   const [panel, setPanel] = useState<ProfilePanel | null>(null)
   const [confirmLogout, setConfirmLogout] = useState(false)
-  const load = useCallback((signal: AbortSignal) => devices(controller!, signal), [controller, user.id])
-  const query = useRemoteQuery(load)
-  const refresh = usePrivateRefresh(query.reload, query.loading || session.busy || confirmLogout || panel !== null)
   const known = useQueueReadiness(offline.runtime, offline.busy)
   const summary = pendingSummary(known, offline.syncItems, offline.incidentItems)
-  const roles = [...new Set(user.roles.map((role) => institutionalRoles.get(role) ?? role))]
-  const connectivity = query.loading ? 'Comprobando' : query.data ? 'Respondió' : 'Sin comprobar'
-  const deviceHint = query.data ? `${query.data.filter((device) => device.status === 'ACTIVE').length} dispositivos activos` : 'Administrar accesos'
+  const roles = [...new Set(user?.roles.map((role) => institutionalRoles.get(role) ?? role))]
   const version = Constants.expoConfig?.version
   const closePanel = () => setPanel(null)
 
-  return <Screen refresh={refresh}>
-    <IdentityBlock name={user.display_name} detail={user.email} roles={roles} />
+  return <Screen>
+    {user ? <IdentityBlock name={user.display_name} detail={user.email} roles={roles} />
+      : <Notice message="Conéctate para consultar los datos de tu perfil. Puedes seguir usando tus listas descargadas y Pendientes." />}
+    {!onlineActions && <Notice message="Administrar dispositivos requiere conexión y una sesión validada." />}
     <Card style={s.menu}>
-      <ProfileRow icon="wifi" label="Conectividad" hint="Consulta al servidor y sesión" onPress={() => setPanel('connectivity')}
-        trailing={<StatusBadge label={connectivity} tone={query.data ? 'success' : 'neutral'} />} />
-      <ProfileRow icon="person" label="Dispositivos autorizados" hint={deviceHint} onPress={() => router.push('/(private)/devices')} />
+      <ProfileRow icon="wifi" label="Conectividad" hint="Estado de red y sesión" onPress={() => setPanel('connectivity')}
+        trailing={<StatusBadge label={connectionLabels[network]} tone={network === 'online' ? 'success' : 'neutral'} />} />
+      <ProfileRow icon="person" label="Dispositivos autorizados" hint={onlineActions ? 'Administrar accesos' : 'Requiere conexión'}
+        onPress={() => onlineActions ? router.push('/(private)/devices') : setPanel('connectivity')} />
       <ProfileRow icon="help" label="Ayuda" hint="Guía rápida de EIDA Control" onPress={() => setPanel('help')} />
       <ProfileRow icon="info" label="Acerca de" hint={version ? `EIDA Control · Versión ${version}` : 'Información de la aplicación'}
         onPress={() => setPanel('about')} last />
@@ -67,12 +68,11 @@ function AccountProfile({ user }: { user: CurrentUser }) {
     <ActionButton secondary label="Cerrar sesión" icon={<ExamIcon name="logout" />} busy={session.busy} onPress={() => setConfirmLogout(true)} />
     {panel && <OperationDetails title={panelTitles[panel]} footerBack onClose={closePanel}>
       {panel === 'connectivity' && <>
-        {query.data && <StatusBadge label="El servidor respondió a la última consulta" tone="success" />}
-        <QueryFeedback loading={query.loading} error={query.error} label="Comprobando acceso al servidor" retry={() => { void query.reload() }} />
+        <AppText>{connectionLabels[network]}</AppText>
+        {offline.access === 'local-session' && session.message && <Notice message={session.message} />}
         {session.validatedAt && <AppText>Última validación de sesión: {laPazInstant(session.validatedAt)}</AppText>}
         {session.expiresAt && <AppText>Vencimiento: {laPazInstant(session.expiresAt)}</AppText>}
-        <ActionButton secondary label="Volver a validar sesión" busy={session.busy} onPress={() => {
-          closePanel()
+        <ActionButton secondary label="Volver a validar sesión" busy={session.busy} disabled={network === 'offline'} onPress={() => {
           void controller?.restore()
         }} />
       </>}
@@ -96,12 +96,12 @@ function AccountProfile({ user }: { user: CurrentUser }) {
       </>}
       <ActionButton secondary label="Volver" onPress={closePanel} />
     </OperationDetails>}
-    <ConfirmDialog visible={confirmLogout && canAccessPrivate(session)} title="¿Cerrar sesión?"
+    <ConfirmDialog visible={confirmLogout} title="¿Cerrar sesión?"
       message={logoutConfirmation(summary)} confirmLabel="Cerrar sesión" destructive onCancel={() => setConfirmLogout(false)}
       onConfirm={() => {
         setConfirmLogout(false)
         const current = controller?.getSnapshot()
-        if (controller && current && canAccessPrivate(current) && !current.busy) void controller.logout()
+        if (controller && current?.hasCredential && !current.logoutPending && !current.busy) void controller.logout()
       }} />
   </Screen>
 }

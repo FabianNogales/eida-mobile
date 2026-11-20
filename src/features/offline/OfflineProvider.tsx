@@ -14,9 +14,11 @@ import { DisciplineApi } from '../incidents/api'
 import { IncidentSync } from '../incidents/sync'
 import type { IncidentItem } from '../incidents/contracts'
 import { OfflineProtectionError } from './protection'
+import { navigationAccess } from './navigationAccess'
 
 interface OfflineContext {
   runtime: VaultRuntime | null; packages: PackageRecord[]; pending: number; busy: boolean; error: string | null
+  usablePackages: PackageRecord[]; access: ReturnType<typeof navigationAccess>
   preparation: PreparationState
   syncItems: SyncItem[]; syncProgress: SyncProgress; synchronize(): Promise<void>
   incidentItems: IncidentItem[]; synchronizeIncidents(): Promise<void>
@@ -28,9 +30,11 @@ export function OfflineProvider({ children }: PropsWithChildren) {
   const [vault] = useState(() => new NativeOfflineVault())
   const [runtime, setRuntime] = useState<VaultRuntime | null>(null)
   const [packages, setPackages] = useState<PackageRecord[]>([])
+  const [usablePackages, setUsablePackages] = useState<PackageRecord[]>([])
   const [pending, setPending] = useState(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [accessError, setAccessError] = useState<string | null>(null)
   const [preparation, setPreparation] = useState<PreparationState>('NO_DESCARGADO')
   const [syncItems, setSyncItems] = useState<SyncItem[]>([])
   const [incidentItems, setIncidentItems] = useState<IncidentItem[]>([])
@@ -40,27 +44,28 @@ export function OfflineProvider({ children }: PropsWithChildren) {
   const [activation, setActivation] = useState(0)
   const attempted = useRef<string | null>(null)
   const clearView = useCallback(() => {
-    setRuntime(null); setPackages([]); setPending(0); setSyncItems([]); setIncidentItems([])
+    setRuntime(null); setPackages([]); setUsablePackages([]); setPending(0); setSyncItems([]); setIncidentItems([])
     setSyncProgress({ running: false, total: 0, processed: 0, batches: 0, message: null })
   }, [])
   const lock = useCallback(async () => { clearView(); await vault.lock() }, [vault, clearView])
   const refresh = useCallback(async () => {
     const r = vault.runtime
     if (!r) { clearView(); return }
-    const sample = await nativeClock.sample()
+    const sample = await nativeClock.sample().catch(() => null)
     await r.outbox.reconcile()
     const records = await r.repo.list()
-    for (const p of records) if (p.active && p.state === 'PREPARADO') {
-      try { await r.repo.usable(p.id, sample) } catch { /* expired state persisted; boot mismatch remains locked by usable */ }
+    const usable: PackageRecord[] = []
+    for (const p of records) if (sample && p.active && p.state === 'PREPARADO') {
+      try { usable.push(await r.repo.usable(p.id, sample)) } catch { /* unusable copies stay off the local exam list */ }
     }
     const current = await r.repo.list(), count = await r.repo.pendingCount()
     const items = await r.outbox.items()
     const reports = await r.incidents.items()
-    r.check(); setPackages(current); setPending(count); setSyncItems(items); setIncidentItems(reports)
+    r.check(); setPackages(current); setUsablePackages(usable); setPending(count); setSyncItems(items); setIncidentItems(reports)
   }, [vault, clearView])
   useEffect(() => controller?.onSecurityBoundary(async (reason) => {
     attempted.current = null
-    setError(null); clearView(); await vault.closeAccess(reason)
+    setError(null); setAccessError(null); clearView(); await vault.closeAccess(reason)
   }), [controller, vault, clearView])
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
@@ -70,6 +75,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       if (active) setActivation((value) => value + 1)
       else {
         attempted.current = null
+        setAccessError(null)
         void lock().catch(() => setError('No se pudo cerrar la información local. Reabre la aplicación.'))
       }
     })
@@ -80,18 +86,20 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     if (work.current || vault.runtime || !foreground.current || !current || current.busy || current.logoutPending) return
     const binding = canAccessPrivate(current) ? controller?.offlineBinding() : undefined
     if (!binding && (current.status !== 'offline' || !current.hasCredential)) return
-    work.current = true; setBusy(true); setError(null)
+    work.current = true; setBusy(true); setError(null); setAccessError(null)
     try {
       const r = await vault.open(binding ?? undefined, () => {
         void lock().catch(() => {})
-        setError(new OfflineProtectionError('SESSION_REQUIRED').message)
-      })
+        const message = new OfflineProtectionError('SESSION_REQUIRED').message
+        setAccessError(message); setError(message)
+      }, current.user ?? undefined)
       await refresh()
       r.check(); setRuntime(r)
     } catch (e) {
       clearView(); await vault.lock().catch(() => {})
       if (foreground.current && !(e instanceof OfflineProtectionError && e.code === 'INTERRUPTED')) {
-        setError(e instanceof Error ? e.message : 'No se pudo abrir la información.')
+        const message = e instanceof Error ? e.message : 'No se pudo abrir la información.'
+        setAccessError(message); setError(message)
       }
     }
     finally { work.current = false; setBusy(false) }
@@ -153,6 +161,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     } catch { setError('No se confirmó el envío de incidencias. Los reportes originales se conservan protegidos.'); await refresh().catch(() => {}) }
     finally { work.current = false; setBusy(false) }
   }
-  return <Context.Provider value={{ runtime, packages, pending, busy, error, preparation, syncItems, syncProgress, synchronize, incidentItems, synchronizeIncidents, open, refresh, download }}>{children}</Context.Provider>
+  const access = navigationAccess(session, { opened: runtime !== null, error: accessError })
+  return <Context.Provider value={{ runtime, packages, usablePackages, access, pending, busy, error, preparation, syncItems, syncProgress, synchronize, incidentItems, synchronizeIncidents, open, refresh, download }}>{children}</Context.Provider>
 }
 export function useOffline() { const value = useContext(Context); if (!value) throw new Error('OfflineProvider no está disponible.'); return value }

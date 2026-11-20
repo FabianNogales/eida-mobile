@@ -18,6 +18,7 @@ import { theme } from '../config/theme'
 import { useAuth } from '../features/auth/AuthProvider'
 import { parseUser } from '../features/auth/api'
 import { canAccessPrivate } from '../features/auth/guards'
+import { useNetwork } from '../features/connectivity/NetworkProvider'
 import { sameBinding } from '../features/offline/contracts'
 import type { VaultRuntime } from '../features/offline/nativeVault'
 import { useOffline } from '../features/offline/OfflineProvider'
@@ -45,6 +46,7 @@ export function PendingOverviewScreen() { return <PendingQueues /> }
 export function PendingQueues({ only, eventId, footer }: { only?: QueueKind; eventId?: string; footer?: ReactNode }) {
   const router = useRouter(), { session, controller } = useAuth()
   const offline = useOffline(), focused = useIsFocused()
+  const network = useNetwork()
   const runtime = session.logoutPending || session.status === 'expired' ||
     (session.user && String(session.user.id) !== offline.runtime?.repo.binding.userId) ? null : offline.runtime
   const [kind, setKind] = useState<QueueKind>(only ?? 'entries')
@@ -147,7 +149,6 @@ export function PendingQueues({ only, eventId, footer }: { only?: QueueKind; eve
     <ListScreen data={rows} keyExtractor={(row) => row.id} refresh={refresh} ListHeaderComponent={<View style={s.header}>
       {!only && <QueueSegments value={kind} entryCount={entryRecords?.pending ?? null}
         incidentCount={pendingCount(query.data?.incidents ?? null)} onChange={setKind} />}
-      {session.status === 'offline' && <StatusBadge label="Sin conexión" tone="warning" />}
       {ownRun !== null && !checkingConnection && sameAccount && <StatusBadge label="Conexión comprobada" tone="success" />}
       {currentMessage && <Notice message={currentMessage} />}
       {!runtime ? <OfflineAccessStatus loadingLabel="Abriendo registros pendientes" /> : <>
@@ -161,7 +162,11 @@ export function PendingQueues({ only, eventId, footer }: { only?: QueueKind; eve
           value={showProgress ? offline.syncProgress.processed / offline.syncProgress.total : null} />}
         {!kindRunning && count !== null && count > 0 && !sameAccount && session.status !== 'offline' &&
           <Notice message="Valida la cuenta original para sincronizar." />}
-        {session.status === 'offline' && count !== null && count > 0 && <AppText variant="caption">Podrás enviar cuando recuperes la conexión y valides tu sesión.</AppText>}
+        {session.status === 'offline' && count !== null && count > 0 && <>
+          <AppText variant="caption">Podrás enviar cuando recuperes la conexión y valides tu sesión.</AppText>
+          <ActionButton secondary label="Validar sesión" busy={session.busy} disabled={network === 'offline'}
+            onPress={() => { void controller?.restore() }} />
+        </>}
         {readError && <><Notice tone="error" message="No se pudo leer esta cola del almacén protegido." />
           <ActionButton secondary label="Reintentar lectura" disabled={!refresh.enabled} onPress={refresh.onRefresh} /></>}
         {query.loading && !refresh.refreshing && !kindRunning && <LoadingState label="Consultando registros" />}

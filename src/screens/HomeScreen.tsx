@@ -13,7 +13,8 @@ import { ExamIcon } from '../components/general/ExamIcon'
 import { QueryFeedback } from '../components/general/QueryFeedback'
 import { theme } from '../config/theme'
 import { useAuth } from '../features/auth/AuthProvider'
-import { canAccessPrivate } from '../features/auth/guards'
+import { useNetwork } from '../features/connectivity/NetworkProvider'
+import { LocalExams } from '../components/control/LocalExams'
 import { collaborations, teacherExams } from '../features/exams/api'
 import { useOffline } from '../features/offline/OfflineProvider'
 import { useRemoteQuery } from '../hooks/useRemoteQuery'
@@ -25,10 +26,13 @@ import { useQueueReadiness } from '../ui/useQueueReadiness'
 
 export function HomeScreen() {
   const { session } = useAuth()
-  return canAccessPrivate(session) ? <Dashboard key={session.user?.id} /> : null
+  const { access } = useOffline()
+  if (access === 'local-session') return <Screen><LocalExams /></Screen>
+  return access === 'online-session' ? <Dashboard key={session.user?.id} /> : null
 }
 function Dashboard() {
   const { session, controller } = useAuth(), offline = useOffline(), router = useRouter()
+  const network = useNetwork()
   const loadExams = useCallback((signal: AbortSignal) => teacherExams(controller!, 'upcoming', 1, signal), [controller, session.user?.id])
   const loadCollaborations = useCallback((signal: AbortSignal) => collaborations(controller!, signal), [controller, session.user?.id])
   const exams = useRemoteQuery(loadExams), assignments = useRemoteQuery(loadCollaborations)
@@ -44,6 +48,7 @@ function Dashboard() {
       <AppText style={s.muted}>{control ? 'Tu control, a mano.' : 'Encuentra tu examen y continúa.'}</AppText>
     </View>
     <QueryFeedback loading={loading && !refresh.refreshing} error={error} label="Consultando tus exámenes" retry={refresh.onRefresh} />
+    {(error || network === 'offline') && <LocalExams />}
     {control && heading && <Card style={s.featured}>
       <View style={s.top}><AppText variant="caption" style={s.light}>EXAMEN ASIGNADO</AppText>
         {control.status && <StatusBadge {...briefExamStatus(control.status)} />}

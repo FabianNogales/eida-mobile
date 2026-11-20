@@ -2,10 +2,10 @@ import { DefaultTheme, Stack, ThemeProvider } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context'
 import { theme } from '../config/theme'
-import { AuthProvider, useAuth } from '../features/auth/AuthProvider'
-import { canAccessPrivate } from '../features/auth/guards'
-import { OfflineProvider } from '../features/offline/OfflineProvider'
-import { stackScreenOptions } from '../navigation/options'
+import { AuthProvider } from '../features/auth/AuthProvider'
+import { OfflineProvider, useOffline } from '../features/offline/OfflineProvider'
+import { NetworkProvider } from '../features/connectivity/NetworkProvider'
+import { nativeStackScreenOptions } from '../navigation/nativeOptions'
 
 const navigationTheme = { ...DefaultTheme, colors: { ...DefaultTheme.colors,
   primary: theme.colors.primary, background: theme.colors.background, card: theme.colors.surface,
@@ -16,21 +16,23 @@ export const unstable_settings = { initialRouteName: 'login' }
 
 export default function RootLayout() {
   return <SafeAreaProvider initialMetrics={initialWindowMetrics}><ThemeProvider value={navigationTheme}>
-    <AuthProvider><OfflineProvider><Navigation /></OfflineProvider></AuthProvider>
+    <NetworkProvider><AuthProvider><OfflineProvider><Navigation /></OfflineProvider></AuthProvider></NetworkProvider>
   </ThemeProvider></SafeAreaProvider>
 }
 
 function Navigation() {
-  const { session } = useAuth()
+  const { access } = useOffline()
   return <>
     <StatusBar style="dark" />
-    <Stack screenOptions={stackScreenOptions}>
+    <Stack screenOptions={nativeStackScreenOptions}>
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="session" options={{ headerShown: false }} />
-      <Stack.Screen name="qr-diagnostics" options={{ title: 'Prueba QR v3' }} />
-      <Stack.Screen name="offline" options={{ headerShown: false }} />
-      <Stack.Protected guard={canAccessPrivate(session)}>
+      <Stack.Protected guard={__DEV__}>
+        <Stack.Screen name="qr-diagnostics" options={{ title: 'Prueba QR v3' }} />
+      </Stack.Protected>
+      <Stack.Protected guard={access !== 'blocked'}>
+        <Stack.Screen name="offline" options={{ headerShown: false }} />
         <Stack.Screen name="(private)" options={{ headerShown: false }} />
       </Stack.Protected>
     </Stack>
