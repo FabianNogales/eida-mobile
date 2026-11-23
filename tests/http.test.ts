@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { apiEndpoint, resolveApiBase } from '../src/config/api'
 import { HttpClient, type ResponsePort } from '../src/services/http/client'
-import { ApiError } from '../src/services/http/errors'
+import { ApiError, httpError } from '../src/services/http/errors'
 import { instant, examDate } from '../src/utils/dates'
 import { BASE, response } from './support/authFixtures'
 
@@ -50,6 +50,32 @@ for (const status of [401, 403, 422, 429, 500]) {
 test('network failure does not masquerade as an HTTP 401', async () => {
   const client = new HttpClient(BASE, async () => { throw new TypeError('offline') })
   await assert.rejects(client.request('me'), { kind: 'network', status: undefined })
+})
+
+test('offline photo errors preserve the failed request, HTTP and bounded server detail', async () => {
+  for (const stage of ['manifest', 'photo']) {
+    const client = new HttpClient(BASE, async (url) => response(url, {
+      code: 'OFFLINE_PHOTO_UNAVAILABLE', message: 'UNSAFE_INTERNAL_DETAILS',
+      photo_error: { stage, student_id: '101', kind: 'profile', reason: 'STORED_IMAGE_REFERENCE_INVALID' },
+    }, 409))
+    const path = stage === 'manifest' ? 'exams/42/offline/package' : 'exams/42/offline/packages/aaaaaaaa-2345-4678-9abc-def012345678/photos/101/profile'
+    await assert.rejects(client.request(path, { responseType: stage === 'photo' ? 'bytes' : undefined }), (error: unknown) => {
+      assert.ok(error instanceof ApiError)
+      assert.equal(error.status, 409)
+      assert.equal(error.code, 'OFFLINE_PHOTO_UNAVAILABLE')
+      assert.ok(error.message.includes('GET ' + path))
+      assert.match(error.message, /HTTP 409.*OFFLINE_PHOTO_UNAVAILABLE/)
+      assert.match(error.message, /estudiante 101.*STORED_IMAGE_REFERENCE_INVALID/)
+      assert.ok(error.message.includes(stage === 'manifest' ? 'generación del manifiesto' : 'descarga de fotografía'))
+      assert.doesNotMatch(error.message, /UNSAFE_INTERNAL_DETAILS/)
+      return true
+    })
+  }
+  for (const detail of [undefined, { stage: 'REMOTE_SECRET', student_id: 'REMOTE_SECRET', kind: 'REMOTE_SECRET', reason: 'REMOTE_SECRET' }]) {
+    const error = httpError(409, { code: 'OFFLINE_PHOTO_UNAVAILABLE', photo_error: detail })
+    assert.match(error.message, /no incluyó una etapa y un motivo válidos/)
+    assert.doesNotMatch(error.message, /REMOTE_SECRET/)
+  }
 })
 test('timeout aborts a request without retrying it', async () => {
   let count = 0

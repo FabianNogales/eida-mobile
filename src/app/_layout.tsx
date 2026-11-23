@@ -28,9 +28,6 @@ function Navigation() {
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="session" options={{ headerShown: false }} />
-      <Stack.Protected guard={__DEV__}>
-        <Stack.Screen name="qr-diagnostics" options={{ title: 'Prueba QR v3' }} />
-      </Stack.Protected>
       <Stack.Protected guard={access !== 'blocked'}>
         <Stack.Screen name="offline" options={{ headerShown: false }} />
         <Stack.Screen name="(private)" options={{ headerShown: false }} />

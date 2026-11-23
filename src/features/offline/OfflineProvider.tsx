@@ -15,6 +15,7 @@ import { IncidentSync } from '../incidents/sync'
 import type { IncidentItem } from '../incidents/contracts'
 import { OfflineProtectionError } from './protection'
 import { navigationAccess } from './navigationAccess'
+import { copyPreparationReason, currentDistribution, distributionReady, resumableCopyId } from './distribution'
 
 interface OfflineContext {
   runtime: VaultRuntime | null; packages: PackageRecord[]; pending: number; busy: boolean; error: string | null
@@ -124,8 +125,15 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       // Stay below the existing 60/min route throttle without automatic retries.
       // Cancellation during pacing cannot resume a request for the previous scope.
       const beforePhoto = async () => { await new Promise<void>((resolve) => setTimeout(resolve, 1200)); r.check() }
-      await new PackageDownloader(new OfflineApi(controller, r.digest, beforePhoto), r.repo, nativeClock, r.validateKeys,
-        () => { void refresh().catch(() => {}) }).run(examId, resumeId)
+      const api = new OfflineApi(controller, r.digest, beforePhoto)
+      const context = await currentDistribution(api, r.repo, examId)
+      await refresh()
+      r.check()
+      if (!distributionReady(context)) throw new Error(copyPreparationReason(context))
+      const previous = resumeId ? await r.repo.package(resumeId) : null
+      const resume = resumableCopyId(previous, context)
+      await new PackageDownloader(api, r.repo, nativeClock, r.validateKeys,
+        () => { void refresh().catch(() => {}) }).run(examId, resume)
       await refresh()
       setPreparation('PREPARADO')
     } catch (e) {

@@ -20,12 +20,15 @@ import { useRemoteQuery } from '../hooks/useRemoteQuery'
 import { protocolError } from '../services/http/errors'
 import { examFeedRows, examPageLocation, examPagination } from '../ui/examPresentation'
 import { examDestination } from '../ui/generalScreens'
+import { CollaborationsScreen } from './CollaborationsScreen'
 
 export function ExamsScreen() {
   const { session } = useAuth()
   const { access } = useOffline()
   const [view, setView] = useState<ExamView>('upcoming')
   if (access === 'local-session') return <Screen><LocalExams /></Screen>
+  // Collaboration is granted per exam. A global DOCENTE role only selects the teaching feed.
+  if (access === 'online-session' && !session.user?.roles.includes('DOCENTE')) return <CollaborationsScreen />
   return access === 'online-session' ? <ExamFeed key={`${session.user?.id}:${view}`} view={view} setView={setView} /> : null
 }
 

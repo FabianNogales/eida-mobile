@@ -1,5 +1,5 @@
 import { ActivityIndicator, Alert, Text } from 'react-native'
-import { Redirect, useRouter } from 'expo-router'
+import { Redirect } from 'expo-router'
 import { Screen } from '../components/Screen'
 import { Notice } from '../components/Notice'
 import { ActionButton } from '../components/ActionButton'
@@ -9,7 +9,6 @@ import { useOffline } from '../features/offline/OfflineProvider'
 
 export function SessionScreen() {
   const { session, controller } = useAuth()
-  const router = useRouter()
   const { access, error } = useOffline()
   if (access === 'online-session' || access === 'local-session') return <Redirect href="/(private)" />
   if (session.status === 'unauthenticated' || (session.status === 'expired' && !session.busy)) return <Redirect href="/login" />
@@ -25,6 +24,5 @@ export function SessionScreen() {
         'Se eliminará la credencial local. No se confirmará su revocación remota; puedes revocarla desde EIDA Web.',
         [{ text: 'Cancelar', style: 'cancel' }, { text: 'Cerrar localmente', style: 'destructive', onPress: () => { void controller.forgetLocal() } }])} />
     </>}
-    {__DEV__ && <ActionButton secondary label="Diagnóstico QR v3 · desarrollo" onPress={() => router.push('/qr-diagnostics')} />}
   </Screen>
 }

@@ -5,10 +5,9 @@ import type { Digest, Manifest, Photo } from './contracts'
 
 export class OfflineApi {
   constructor(private session: SessionController, private digest: Digest, private beforePhoto: () => Promise<void> = async () => {}) {}
-  context(examId: string) { return this.session.request(`exams/${id(examId)}/offline/mobile-context`).then(parseContext) }
+  context(examId: string, signal?: AbortSignal) { return this.session.request(`exams/${id(examId)}/offline/mobile-context`, { signal }).then(parseContext) }
   // HU35 remains on the server. No Android allocation algorithm.
   async prepare(examId: string) { await this.session.request(`exams/${id(examId)}/offline/prepare`, { method: 'POST' }) }
-  async assignments(examId: string) { return this.session.request(`exams/${id(examId)}/offline/assignments`) }
   async package(examId: string) {
     const value = await this.session.request(`exams/${id(examId)}/offline/package`, { query: { schema_version: 2 } })
     const parsed = parseEnvelope(value, this.digest)

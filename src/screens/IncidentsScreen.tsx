@@ -41,7 +41,7 @@ export function IncidentsScreen() {
         </>}
         {permission?.report && <AppText>Para un reporte offline, abre tu paquete vigente y selecciona Registrar incidencia.</AppText>}
       </>}
-      <ActionButton secondary label="Paquetes y reportes locales cifrados" onPress={() => router.push('/offline')} />
+      <ActionButton secondary label="Listas descargadas" onPress={() => router.push('/offline')} />
     </View>}
     renderItem={({ item }) => <Card>
       <StatusBadge label={statusLabels[item.status] ?? item.status} />

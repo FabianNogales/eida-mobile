@@ -50,7 +50,7 @@ export class PackageDownloader {
       this.changed()
       return id
     } catch (error) {
-      const rejected = error instanceof ApiError && (error.status === 403 || ['DISTRIBUTION_STALE', 'EXAM_CANCELLED', 'EXAM_ENDED', 'EXAM_FINISHED', 'EXAM_STATE_NOT_ALLOWED'].includes(error.code ?? ''))
+      const rejected = error instanceof ApiError && (error.status === 403 || ['DISTRIBUTION_STALE', 'DISTRIBUTION_FROZEN', 'EXAM_CANCELLED', 'EXAM_ENDED', 'EXAM_FINISHED', 'EXAM_STATE_NOT_ALLOWED'].includes(error.code ?? ''))
       if (rejected) {
         try { for (const p of await this.repo.list()) if (p.examId === examId) await this.repo.setState(p.id, 'DESACTUALIZADO') } catch { /* locked */ }
       } else if (id && !wasActive) {

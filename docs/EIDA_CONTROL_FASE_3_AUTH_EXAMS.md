@@ -1,5 +1,14 @@
 # EIDA Control — fase 3: autenticación, sesión y consultas
 
+Mantenimiento del 20/11/2026: la UI normal ya no ofrece dispositivos ni diagnósticos;
+el enlace antiguo de dispositivos redirige a Perfil, sin retirar las APIs o la
+seguridad de dispositivos. Inicio y Mis exámenes muestran colaboraciones de una
+cuenta sin rol docente sin exigirle el catálogo docente. La actualización de copias
+respeta la asignación vigente por examen. Consulte
+[Ajuste final de UX y distribución](AJUSTE_FINAL_UX_DISTRIBUCION.md).
+Cambios solo de código, sin ejecutar pruebas ni generar una APK; las secciones
+siguientes describen la implementación histórica de fase 3.
+
 Fecha: 8 de noviembre de 2026, America/La_Paz. Proyecto: `C:/proyecto/eida-mobile`.
 
 **Estado: implementación de código y revisión estática. No se ejecutaron instalaciones, pruebas, typecheck, Expo, compilaciones, ADB ni comandos Git.** El usuario confirmó al solicitar esta fase que QR v3 de fase 2 funciona en su celular real; no se atribuye esa prueba al asistente.

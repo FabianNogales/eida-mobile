@@ -1,5 +1,18 @@
 # EIDA Control — informe acumulado de fase 2
 
+## Mantenimiento posterior — 20 de noviembre de 2026
+
+Se implementó exclusivamente código para simplificar Perfil y Ayuda, presentar
+Listas descargadas, recuperar copias desactualizadas y mostrar colaboraciones sin
+depender de una consulta docente. Se preservan las protecciones de instalación,
+sesión y copia, los pendientes y el verificador QR previo. No se ejecutaron pruebas,
+typecheck, herramientas nativas ni compilaciones y no se generó una APK.
+La comprobación histórica del QR en Android fue informada por el usuario; no
+valida los cambios nuevos. Detalle y comprobación manual pendiente en
+[Ajuste final de UX y distribución](AJUSTE_FINAL_UX_DISTRIBUCION.md).
+
+El contenido siguiente conserva el registro histórico de la fase 2.
+
 Actualizado el 7 de noviembre de 2026, America/La_Paz. Incluye lo realizado en los prompts anteriores de fase 2 y en la sesión actual exclusivamente de código. No incluye como trabajo de fase 2 la implementación backend de fase 1.
 
 ## 1. Estado final real

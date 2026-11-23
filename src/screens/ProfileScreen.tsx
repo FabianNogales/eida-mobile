@@ -10,6 +10,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Notice } from '../components/Notice'
 import { StatusBadge } from '../components/StatusBadge'
 import { IdentityBlock } from '../components/general/IdentityBlock'
+import { ControlHelp } from '../components/general/ControlHelp'
 import { ExamIcon, type ExamIconName } from '../components/general/ExamIcon'
 import { OperationDetails } from '../components/operations/OperationDetails'
 import { theme } from '../config/theme'
@@ -43,7 +44,6 @@ function AccountProfile({ user }: { user: LocalProfile | null }) {
   const { session, controller } = useAuth(), router = useRouter()
   const offline = useOffline()
   const network = useNetwork()
-  const onlineActions = offline.access === 'online-session' && network !== 'offline'
   const [panel, setPanel] = useState<ProfilePanel | null>(null)
   const [confirmLogout, setConfirmLogout] = useState(false)
   const known = useQueueReadiness(offline.runtime, offline.busy)
@@ -55,12 +55,10 @@ function AccountProfile({ user }: { user: LocalProfile | null }) {
   return <Screen>
     {user ? <IdentityBlock name={user.display_name} detail={user.email} roles={roles} />
       : <Notice message="Conéctate para consultar los datos de tu perfil. Puedes seguir usando tus listas descargadas y Pendientes." />}
-    {!onlineActions && <Notice message="Administrar dispositivos requiere conexión y una sesión validada." />}
+    <AppText variant="caption">Tus funciones de docente o colaborador dependen del examen asignado.</AppText>
     <Card style={s.menu}>
       <ProfileRow icon="wifi" label="Conectividad" hint="Estado de red y sesión" onPress={() => setPanel('connectivity')}
         trailing={<StatusBadge label={connectionLabels[network]} tone={network === 'online' ? 'success' : 'neutral'} />} />
-      <ProfileRow icon="person" label="Dispositivos autorizados" hint={onlineActions ? 'Administrar accesos' : 'Requiere conexión'}
-        onPress={() => onlineActions ? router.push('/(private)/devices') : setPanel('connectivity')} />
       <ProfileRow icon="help" label="Ayuda" hint="Guía rápida de EIDA Control" onPress={() => setPanel('help')} />
       <ProfileRow icon="info" label="Acerca de" hint={version ? `EIDA Control · Versión ${version}` : 'Información de la aplicación'}
         onPress={() => setPanel('about')} last />
@@ -77,22 +75,20 @@ function AccountProfile({ user }: { user: LocalProfile | null }) {
         }} />
       </>}
       {panel === 'help' && <>
-        <AppText>Abre un examen y prepara tu lista con conexión antes de controlar ingresos sin internet.</AppText>
-        <AppText>Escanea un QR o busca al estudiante en tu lista. Revisa su identidad antes de confirmar el ingreso.</AppText>
-        <AppText>Abre Pendientes para enviar registros y revisar el resultado del servidor.</AppText>
+        <ControlHelp />
         <ActionButton secondary label="Abrir Pendientes" onPress={() => {
           closePanel()
           router.navigate('/(private)/(tabs)/pending')
+        }} />
+        <ActionButton secondary label="Ver listas descargadas" onPress={() => {
+          closePanel()
+          router.push('/offline')
         }} />
       </>}
       {panel === 'about' && <>
         <AppText variant="subtitle">EIDA Control</AppText>
         {version && <AppText>Versión {version}</AppText>}
         <AppText>Control de ingreso a exámenes de la Universidad Mayor de San Simón.</AppText>
-        {__DEV__ && <ActionButton secondary label="Diagnóstico QR v3" onPress={() => {
-          closePanel()
-          router.push('/qr-diagnostics')
-        }} />}
       </>}
       <ActionButton secondary label="Volver" onPress={closePanel} />
     </OperationDetails>}

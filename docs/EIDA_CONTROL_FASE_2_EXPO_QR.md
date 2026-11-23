@@ -1,5 +1,12 @@
 # EIDA Control — fase 2: código y ejecución manual
 
+Actualización de mantenimiento del 20/11/2026: Perfil/Ayuda, Listas descargadas,
+actualización de copias y acceso del colaborador se detallan en
+[Ajuste final de UX y distribución](AJUSTE_FINAL_UX_DISTRIBUCION.md).
+Solo se implementó código; no se ejecutaron pruebas, herramientas de compilación
+ni se generó una APK. La validación previa del QR informada por el usuario se
+conserva como evidencia histórica, no como validación de este bloque.
+
 Actualizado: 7 de noviembre de 2026, America/La_Paz.
 
 **Nota posterior, 8 de noviembre:** al iniciar fase 3, el usuario confirmó que finalizó esta fase y verificó satisfactoriamente QR v3 en un celular Android real. El estado y resultados de revisión que siguen describen la entrega anterior del asistente, no anulan esa comprobación posterior del usuario. El verificador, vectores y pruebas QR se preservan en fase 3; véase [fase 3](EIDA_CONTROL_FASE_3_AUTH_EXAMS.md).

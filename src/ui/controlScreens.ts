@@ -3,6 +3,7 @@ import type { SyncItem } from '../features/offline/sync/contracts'
 import type { IncidentItem } from '../features/incidents/contracts'
 import { eligible } from '../features/offline/identity'
 import { pendingSummary } from './pendingSummary'
+import { copyMatchesDistribution, distributionReady } from '../features/offline/distribution'
 import type { Tone } from './presentation'
 
 export const preparationLabels: Record<PreparationState, { label: string; tone: Tone }> = {
@@ -17,16 +18,16 @@ export const preparationLabels: Record<PreparationState, { label: string; tone: 
 export function packageActions(p: Pick<PackageRecord, 'active' | 'state'>, unlocked: boolean, online: boolean) {
   return { open: unlocked && p.active && p.state === 'PREPARADO',
     resume: unlocked && online && !p.active && p.state !== 'VENCIDO' && p.state !== 'DESACTUALIZADO',
-    revalidate: unlocked && online && p.active }
+    revalidate: unlocked && online && (p.active || p.state === 'DESACTUALIZADO' || p.state === 'VENCIDO') }
 }
 export function distributionAccess(c: DistributionContext, unlocked: boolean) {
   return { supervise: c.can_prepare, ownList: c.lists.find((list) => list.list_id === c.own_list_id) ?? null,
-    prepare: c.can_prepare && !c.stale && !c.unavailable_reason,
-    download: !!c.own_list_id && unlocked && !c.stale && !c.unavailable_reason,
+    prepare: c.can_prepare && !c.unavailable_reason,
+    download: unlocked && distributionReady(c),
     lists: c.can_prepare ? c.lists : c.lists.filter((list) => list.list_id === c.own_list_id) }
 }
 export function ownExamPackages(c: DistributionContext, packages: readonly PackageRecord[], unlocked: boolean) {
-  return unlocked && c.own_list_id ? packages.filter((p) => p.examId === String(c.exam.id) && p.manifest.list_id === c.own_list_id) : []
+  return unlocked ? packages.filter((p) => copyMatchesDistribution(p, c)) : []
 }
 export function examPendingSummary(examId: string, unlocked: boolean, entries: readonly SyncItem[], incidents: readonly IncidentItem[]) {
   return pendingSummary(unlocked, entries.filter((e) => e.examId === examId), incidents.filter((e) => e.event.exam_id === examId))

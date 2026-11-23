@@ -44,7 +44,7 @@ test('a supervisor without own list gets no downloadable records or inferred ass
 test('stale, unavailable or locked contexts do not offer a personal download', () => {
   for (const c of [context({ stale: true }), context({ unavailable_reason: 'MOBILE_ABILITY_REQUIRED' })]) {
     assert.equal(distributionAccess(c, true).download, false)
-    assert.equal(distributionAccess(c, true).prepare, false)
+    assert.equal(distributionAccess(c, true).prepare, !c.unavailable_reason)
   }
   assert.equal(distributionAccess(context(), false).download, false)
   assert.deepEqual(ownExamPackages(context(), [record()], false), [])

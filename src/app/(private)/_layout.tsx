@@ -15,10 +15,10 @@ export default function PrivateLayout() {
   return <Stack screenOptions={nativeStackScreenOptions}>
     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     <Stack.Screen name="offline-distribution" options={{ title: 'Detalle del examen' }} />
+    <Stack.Screen name="devices" options={{ title: 'Perfil' }} />
     <Stack.Protected guard={access === 'online-session'}>
       <Stack.Screen name="collaborations" options={{ title: 'Mis colaboraciones' }} />
-      <Stack.Screen name="devices" options={{ title: 'Mis dispositivos' }} />
-      <Stack.Screen name="prepare-offline" options={{ title: 'Preparar lista offline' }} />
+      <Stack.Screen name="prepare-offline" options={{ title: 'Preparar mi copia' }} />
       <Stack.Screen name="incidents" options={{ title: 'Incidencias del examen' }} />
       <Stack.Screen name="incident" options={{ title: 'Detalle de incidencia' }} />
       <Stack.Screen name="infractions" options={{ title: 'Infracciones' }} />

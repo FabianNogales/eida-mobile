@@ -19,6 +19,7 @@ import { collaborations, teacherExams } from '../features/exams/api'
 import { useOffline } from '../features/offline/OfflineProvider'
 import { useRemoteQuery } from '../hooks/useRemoteQuery'
 import { usePrivateRefresh } from '../hooks/usePrivateRefresh'
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus'
 import { examDestination } from '../ui/generalScreens'
 import { briefExamStatus, examHeading, homeOverview } from '../ui/examPresentation'
 import { pendingSummary } from '../ui/pendingSummary'
@@ -33,15 +34,18 @@ export function HomeScreen() {
 function Dashboard() {
   const { session, controller } = useAuth(), offline = useOffline(), router = useRouter()
   const network = useNetwork()
-  const loadExams = useCallback((signal: AbortSignal) => teacherExams(controller!, 'upcoming', 1, signal), [controller, session.user?.id])
+  const teaching = session.user?.roles.includes('DOCENTE') ?? false
+  const loadExams = useCallback((signal: AbortSignal) => teaching
+    ? teacherExams(controller!, 'upcoming', 1, signal) : Promise.resolve(null), [controller, session.user?.id, teaching])
   const loadCollaborations = useCallback((signal: AbortSignal) => collaborations(controller!, signal), [controller, session.user?.id])
   const exams = useRemoteQuery(loadExams), assignments = useRemoteQuery(loadCollaborations)
-  const { loading, error, control, empty, choose } = homeOverview(exams, assignments)
+  const { loading, error, control, empty, choose } = homeOverview(exams, assignments, teaching)
   const heading = control ? examHeading(control) : null
   const known = useQueueReadiness(offline.runtime, offline.busy)
   const summary = pendingSummary(known, offline.syncItems, offline.incidentItems)
   const firstName = session.user?.display_name.trim().split(/\s+/)[0]
   const refresh = usePrivateRefresh(() => Promise.all([exams.reload(), assignments.reload()]), loading)
+  useRefreshOnFocus(() => Promise.all([exams.reload(), assignments.reload()]))
   return <Screen refresh={refresh}>
     <View style={s.greeting}>
       <AppText variant="title" accessibilityRole="header">{firstName ? `Hola, ${firstName}` : 'Hola'}</AppText>
@@ -63,13 +67,16 @@ function Dashboard() {
     {choose && <EmptyState title="Elige tu examen" message="Consulta tus exámenes o colaboraciones para continuar." />}
     <View style={s.actions}>
       <ExamActionRow card icon="calendar" label="Mis exámenes"
-        hint={exams.data ? `${exams.data.total} próximos o activos en docencia` : undefined}
+        hint={teaching && exams.data ? `${exams.data.total} próximos o activos en docencia` :
+          assignments.data ? `${assignments.data.length} colaboraciones asignadas` : undefined}
         onPress={() => router.push('/(private)/exams')} />
-      {(!!assignments.data?.length || !!assignments.error) && <ExamActionRow card icon="person" label="Mis colaboraciones"
+      {teaching && (!!assignments.data?.length || !!assignments.error) && <ExamActionRow card icon="person" label="Mis colaboraciones"
         hint={assignments.data ? `${assignments.data.length} asignadas` : undefined} onPress={() => router.push('/(private)/collaborations')} />}
       <ExamActionRow card icon="clock" label="Ingresos y reportes pendientes"
         hint={summary ? `${summary.pending} por enviar · ${summary.attention} por revisar` : 'Consultar estado'}
         onPress={() => router.push('/(private)/pending')} />
+      <ExamActionRow card icon="download" label="Listas descargadas"
+        hint="Abrir o actualizar tus copias" onPress={() => router.push('/offline')} />
     </View>
   </Screen>
 }

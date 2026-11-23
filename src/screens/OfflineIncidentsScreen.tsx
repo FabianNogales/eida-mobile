@@ -45,7 +45,7 @@ function LocalDrafts() {
       <ActionButton secondary label="Solicitar revisión docente online" disabled={!controller?.offlineBinding()}
         onPress={() => router.push({ pathname: '/(private)/infractions', params: { examId: draft.examId, draftId: draft.id } })} />
     </Card>)}
-    <TextAction label="Paquetes protegidos" onPress={() => router.replace('/offline')} />
+    <TextAction label="Listas descargadas" onPress={() => router.replace('/offline')} />
   </View>
 }
 

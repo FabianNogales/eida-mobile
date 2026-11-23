@@ -18,10 +18,13 @@ import { TextAction } from '../components/general/TextAction'
 import { theme } from '../config/theme'
 import { useAuth } from '../features/auth/AuthProvider'
 import { useOffline } from '../features/offline/OfflineProvider'
+import { useNetwork } from '../features/connectivity/NetworkProvider'
 import { OfflineApi } from '../features/offline/api'
 import { DisciplineApi } from '../features/incidents/api'
 import { useRemoteQuery } from '../hooks/useRemoteQuery'
 import { usePrivateRefresh } from '../hooks/usePrivateRefresh'
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus'
+import { copyPreparationReason, currentDistribution } from '../features/offline/distribution'
 import { ApiError } from '../services/http/errors'
 import { listDestination } from '../ui/controlScreens'
 import { detailPresentation, examExtraActions } from '../ui/examPresentation'
@@ -33,15 +36,17 @@ export function OfflineDistributionScreen() {
 }
 function DistributionView({ examId }: { examId: string }) {
   const { access, usablePackages } = useOffline()
+  const network = useNetwork()
   const { push } = useRouter()
-  if (access === 'local-session') {
+  if (access === 'local-session' || network === 'offline') {
     const copy = usablePackages.find((item) => item.examId === examId)
     return <Screen>
       {copy ? <>
         <ExamHero exam={copy.manifest.exam} relation="Mi lista" />
         <Notice message="Detalle de tu copia descargada. Las acciones del servidor requieren conexión." />
         <ActionButton label="Controlar ingreso" onPress={() => push(listDestination(copy.id))} />
-      </> : <Notice message="Este examen no tiene una copia local vigente." />}
+      </> : <Notice message="Este examen no tiene una copia lista para controlar ingresos. Conéctate y abre el examen para actualizarla. Tus pendientes se conservan." />}
+      <ActionButton secondary label="Listas descargadas" onPress={() => push('/offline')} />
     </Screen>
   }
   return <RemoteDistributionView examId={examId} />
@@ -52,23 +57,15 @@ function RemoteDistributionView({ examId }: { examId: string }) {
   const [preparing, setPreparing] = useState(false), [prepareError, setPrepareError] = useState<string | null>(null)
   const [distribution, setDistribution] = useState(false), [actions, setActions] = useState(false)
   const api = useCallback(() => new OfflineApi(controller!, offline.runtime?.digest ?? (() => { throw new Error('No se pudo abrir la información local.')})), [controller, offline.runtime])
-  const load = useCallback(async () => {
-    const context = await api().context(examId).catch(async (error: unknown) => {
-      if (error instanceof ApiError && error.status === 403 && offline.runtime) {
-        for (const p of await offline.runtime.repo.list()) if (p.examId === examId) await offline.runtime.repo.setState(p.id, 'DESACTUALIZADO')
-        await offline.refresh()
-      }
-      throw error
-    })
-    // Existing owner-only request; supervision never grants another list's download.
-    if (context.can_prepare && context.distribution_id) await api().assignments(examId)
-    if ((context.stale || context.unavailable_reason) && offline.runtime) {
-      for (const p of await offline.runtime.repo.list()) if (p.examId === examId) await offline.runtime.repo.setState(p.id, 'DESACTUALIZADO')
-      await offline.refresh()
+  const load = useCallback(async (signal: AbortSignal) => {
+    try {
+      return await currentDistribution(api(), offline.runtime?.repo ?? null, examId, signal)
+    } finally {
+      if (offline.runtime) await offline.refresh()
     }
-    return context
   }, [api, examId, offline.runtime, offline.refresh])
   const query = useRemoteQuery(load)
+  useRefreshOnFocus(query.reload)
   const c = query.data && String(query.data.exam.id) === examId ? query.data : null
   const loadPermissions = useCallback(async (signal: AbortSignal) => {
     if (!controller || !c) return null
@@ -82,19 +79,16 @@ function RemoteDistributionView({ examId }: { examId: string }) {
     !!controller?.offlineBinding(), offline.busy) : null
   const extras = examExtraActions(c?.exam.id ?? 0, permissions.loading || permissions.error ? null : permissions.data)
   const local = view?.local, latest = view?.latest
-  const cached = !c && offline.runtime ? offline.usablePackages.find((item) => item.examId === examId) : undefined
   return <Screen refresh={refresh}>
     <QueryFeedback loading={query.loading && !refresh.refreshing} error={query.error} label="Consultando examen" retry={refresh.onRefresh} />
+    {query.error && <ActionButton secondary label="Listas descargadas" onPress={() => router.push('/offline')} />}
     {prepareError && <Notice tone="error" message={prepareError} />}
     {offline.error && <Notice tone="error" message={offline.error} />}
-    {cached && <>
-      <ExamHero exam={cached.manifest.exam} relation="Mi lista" />
-      <Notice message="Detalle de tu copia descargada." />
-      <ActionButton label="Controlar ingreso" onPress={() => router.push(listDestination(cached.id))} />
-    </>}
     {c && view && <>
       <ExamHero exam={c.exam} relation={view.relation} />
-      {c.stale && <Notice message="La distribución cambió. Tu lista requiere revisión antes de continuar." />}
+      {c.stale && <Notice message={copyPreparationReason(c)} />}
+      {!c.stale && !local && offline.packages.some((copy) => copy.examId === examId && copy.state === 'DESACTUALIZADO') &&
+        <Notice message="Tu copia descargada pertenece a una distribución anterior. Pulsa Actualizar copia para obtener tu lista actual. No puedes registrar ingresos con la copia anterior." />}
       {c.unavailable_reason && <Notice tone="error" message="El servidor no permite preparar o abrir esta lista en su estado actual." />}
       <Card>
         <View style={s.listHeading}><View style={s.copy}>
@@ -112,14 +106,21 @@ function RemoteDistributionView({ examId }: { examId: string }) {
           disabled={!view.control} onPress={() => {
           if (view.control && local) router.push(listDestination(local.id))
         }} />
-        <ActionButton secondary label={local ? 'Ver preparación offline' : 'Preparar lista offline'}
-          disabled={offline.busy || c.stale || !!c.unavailable_reason}
+        <ActionButton secondary label={c.stale || latest?.state === 'DESACTUALIZADO' ||
+          (!local && offline.packages.some((copy) => copy.examId === examId && copy.state === 'DESACTUALIZADO'))
+          ? 'Actualizar copia' : local ? 'Ver mi copia' : 'Preparar mi lista'}
+          disabled={offline.busy || preparing || !!c.unavailable_reason}
           onPress={() => router.push({ pathname: '/(private)/prepare-offline', params: { examId } })} />
         {!local && <AppText variant="caption" style={s.muted}>Prepara tu lista para controlar ingresos sin internet.</AppText>}
       </>}
-      {!c.own_list_id && <EmptyState title={view.access.supervise ? 'Puedes supervisar la distribución' : 'Sin lista personal'}
-        message={view.access.supervise ? 'Supervisar no permite descargar las listas de otras personas.' : 'Consulta con el responsable del examen.'} />}
-      {c.can_prepare && !c.frozen && <ActionButton secondary label="Preparar distribución de listas"
+      {!c.own_list_id && <>
+        <EmptyState title={view.access.supervise ? 'Sin lista personal preparada' : 'Lista pendiente de asignación'}
+          message={copyPreparationReason(c)} />
+        <ActionButton secondary label={c.stale ? 'Actualizar copia' : c.can_prepare ? 'Preparar mi lista' : 'Comprobar mi lista'}
+          disabled={offline.busy || preparing || !!c.unavailable_reason}
+          onPress={() => router.push({ pathname: '/(private)/prepare-offline', params: { examId } })} />
+      </>}
+      {c.can_prepare && !c.frozen && !c.stale && <ActionButton secondary label="Preparar distribución de listas"
         disabled={!view.prepareDistribution} busy={preparing} onPress={() => {
           setPreparing(true); setPrepareError(null)
           void api().prepare(examId).then(query.refresh)
@@ -138,7 +139,7 @@ function RemoteDistributionView({ examId }: { examId: string }) {
         </View>}
         {view.access.supervise && <ExamActionRow icon="list" label={distribution ? 'Ocultar distribución' : 'Supervisar distribución'}
           onPress={() => setDistribution((old) => !old)} />}
-        <ExamActionRow icon="download" label="Mis paquetes" onPress={() => router.push('/offline')} />
+        <ExamActionRow icon="download" label="Listas descargadas" onPress={() => router.push('/offline')} />
       </View>
       {permissions.loading && <AppText variant="caption" style={s.muted}>Consultando acciones disponibles…</AppText>}
       {permissions.error && <View style={s.section}><AppText variant="caption" style={s.muted}>Las acciones adicionales no están disponibles.</AppText>
@@ -148,7 +149,7 @@ function RemoteDistributionView({ examId }: { examId: string }) {
         <StatusBadge label={c.frozen ? 'Distribución preparada' : 'Sin preparar'} tone={c.stale ? 'warning' : 'neutral'} />
         {view.access.lists.map((list) => <DistributionListCard key={list.list_id} list={list} own={list.list_id === c.own_list_id} />)}
         {view.access.lists.length === 0 && <AppText>No hay listas preparadas.</AppText>}
-        {c.frozen && <ActionButton secondary label="Verificar distribución" disabled={!view.prepareDistribution} busy={preparing}
+        {c.frozen && <ActionButton secondary label={c.stale ? 'Actualizar distribución' : 'Verificar distribución'} disabled={!view.prepareDistribution} busy={preparing}
           onPress={() => {
             setPreparing(true); setPrepareError(null)
             void api().prepare(examId).then(query.refresh)

@@ -42,7 +42,7 @@ export function scanPresentation(state: QrScanState): OperationLabel {
     case 'scanning': return { label: 'Cámara en lectura', icon: '○', tone: 'info' }
     case 'detected': return { label: 'QR detectado · cámara pausada', icon: '…', tone: 'info' }
     case 'verifying': return { label: 'Verificando firma, vigencia, examen y lista', icon: '…', tone: 'info' }
-    case 'review': return { label: 'QR v3 autenticado · revisa la identidad', icon: '✓', tone: 'success' }
+    case 'review': return { label: 'QR verificado · revisa la identidad', icon: '✓', tone: 'success' }
     case 'saving': return { label: 'Guardando provisional en el dispositivo', icon: '…', tone: 'info' }
     case 'saved': return { label: 'Guardado localmente · consulta el recibo', icon: '…', tone: 'warning' }
     case 'duplicate': return { label: 'Operación local ya existente', icon: '↺', tone: 'warning' }

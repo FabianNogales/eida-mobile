@@ -70,11 +70,11 @@ test('unknown exam states remain explicit and local copy labels do not grant aut
 })
 test('logout confirmation warns about both queues and does not treat a locked vault as empty', () => {
   const summary = pendingSummary(true, [{ state: 'PENDING' }, { state: 'CONFLICT' }], [{ state: 'PENDING' }])
-  assert.match(logoutConfirmation(summary), /2 operaciones por enviar y 1 conflictos o rechazos/)
-  assert.match(logoutConfirmation(summary), /no sincroniza ni elimina/)
+  assert.match(logoutConfirmation(summary), /2 registros por enviar y 1 por revisar/)
+  assert.match(logoutConfirmation(summary), /no envía ni elimina/)
   assert.match(logoutConfirmation(summary), /misma cuenta/)
-  assert.match(logoutConfirmation(null), /no se puede comprobar/)
-  assert.doesNotMatch(logoutConfirmation(null), /0 operaciones/)
+  assert.match(logoutConfirmation(null), /No se pudo comprobar/)
+  assert.doesNotMatch(logoutConfirmation(null), /0 registros/)
 })
 test('general screen links keep the exam context and existing detail destinations', () => {
   assert.deepEqual(examDestination(42), { pathname: '/(private)/offline-distribution', params: { examId: '42' } })

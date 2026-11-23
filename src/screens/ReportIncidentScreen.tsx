@@ -35,7 +35,7 @@ export function ReportIncidentScreen({ draft = false }: { draft?: boolean }) {
   return <Screen><AppText variant="subtitle" accessibilityRole="header">{draft ? 'Borrador de infracción' : 'Reportar incidencia'}</AppText>
     {runtime && pkg && (!draft || ownerAllowed) ? <LocalReportForm key={`${pkg.id}:${draft}`} runtime={runtime} pkg={pkg} draft={draft} /> : <Notice message={error ?? (draft ? 'Primero valida online tu permiso de docente responsable para este paquete. Un colaborador no puede preparar infracciones.' : 'Comprobando la autorización del paquete…')} />}
     <ActionButton secondary label="Ver reportes locales" onPress={() => router.replace('/offline/incidents')} />
-    <ActionButton secondary label="Paquetes protegidos" onPress={() => router.replace('/offline')} />
+    <ActionButton secondary label="Listas descargadas" onPress={() => router.replace('/offline')} />
   </Screen>
 }
 function LocalReportForm({ runtime: r, pkg: p, draft }: { runtime: VaultRuntime; pkg: PackageRecord; draft: boolean }) {

@@ -193,7 +193,7 @@ export function PendingQueues({ only, eventId, footer }: { only?: QueueKind; eve
           : 'Los registros aparecerán aquí cuando estén disponibles.'} /> : undefined}
     ListFooterComponent={<View style={s.header}>
       {runtime && focused && footer}
-      {!only && <TextAction label="Paquetes protegidos" onPress={() => router.push('/offline')} />}
+      {!only && <TextAction label="Listas descargadas" onPress={() => router.push('/offline')} />}
     </View>} />
     {detail && !currentSummary && <OperationDetails title="Detalle de sincronización" footerBack onClose={() => setSelected(null)}>
       <QueueRecordDetails row={detail} kind={kind} onClose={() => setSelected(null)}

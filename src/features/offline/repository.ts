@@ -133,10 +133,11 @@ export class OfflineRepository {
   }
   async usable(id: string, sample: ClockSample) {
     const p = await this.package(id)
-    if (!p.active || p.state !== 'PREPARADO') throw new Error('El paquete no está preparado o requiere revisión.')
+    if (p.state === 'DESACTUALIZADO') throw new Error('Esta copia quedó desactualizada. Conéctate, abre el examen y pulsa Actualizar copia. Tus pendientes se conservan.')
+    if (!p.active || p.state !== 'PREPARADO') throw new Error('La lista no está preparada. Abre el examen y prepara una copia nueva con internet.')
     if (anchoredNow(p.anchor, sample) >= Date.parse(p.manifest.expires_at)) {
       await this.setState(id, 'VENCIDO')
-      throw new Error('La vigencia autorizada del paquete terminó. Los pendientes permanecen protegidos.')
+      throw new Error('La copia venció. Prepara una copia nueva con internet. Tus pendientes se conservan.')
     }
     return p
   }

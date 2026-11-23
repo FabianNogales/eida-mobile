@@ -176,14 +176,16 @@ function LocalList({ packageId, focusSearch }: { packageId: string; focusSearch:
   if (!r) return <Screen><OfflineAccessStatus loadingLabel="Abriendo tu lista" />{navigation()}</Screen>
   if (blocked && currentState) return <Screen><Notice message={currentState.state === 'VENCIDO' ? 'La lista venció. Prepara una copia vigente.'
     : currentState.state === 'INCOMPLETA' || currentState.state === 'DESCARGANDO' ? 'La preparación de esta lista está incompleta.'
-      : currentState.state === 'DESACTUALIZADO' ? 'Esta copia ya no está autorizada para el control. Revisa su estado con conexión.'
+      : currentState.state === 'DESACTUALIZADO' ? 'La distribución cambió y esta copia quedó desactualizada. Conéctate y pulsa Actualizar copia antes de registrar ingresos. Tus pendientes se conservan.'
       : 'Esta copia requiere revisión antes de abrir la lista.'} />
-    <ActionButton label="Ver paquetes y estado" onPress={() => router.replace('/offline')} />
+    {offline.access === 'online-session' && (currentState.state === 'DESACTUALIZADO' || currentState.state === 'VENCIDO') &&
+      <ActionButton label="Actualizar copia" onPress={() => router.replace({ pathname: '/(private)/prepare-offline', params: { examId: currentState.examId } })} />}
+    <ActionButton secondary label="Listas descargadas" onPress={() => router.replace('/offline')} />
     {navigation(currentState.examId)}</Screen>
   if (!visible || !p) return <Screen>
     {error ? <Notice tone="error" message={error} /> : <LoadingState label="Comprobando tu lista" />}
     <ActionButton secondary label="Reintentar consulta local" disabled={loading} onPress={() => setRevision((v) => v + 1)} />
-    <ActionButton secondary label="Ver paquetes y estado" onPress={() => router.push('/offline')} />
+    <ActionButton secondary label="Listas descargadas" onPress={() => router.push('/offline')} />
     {navigation(currentState?.examId)}
   </Screen>
   const settled = term === searchTerm

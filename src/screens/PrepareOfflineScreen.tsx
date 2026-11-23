@@ -17,7 +17,8 @@ import { anchoredNow, nativeClock } from '../features/offline/clock'
 import { sameBinding, type PackageRecord } from '../features/offline/contracts'
 import { useOffline } from '../features/offline/OfflineProvider'
 import { useRemoteQuery } from '../hooks/useRemoteQuery'
-import { ApiError } from '../services/http/errors'
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus'
+import { copyPreparationReason, currentDistribution, distributionReady, prepareCopyContext, resumableCopyId } from '../features/offline/distribution'
 import { listDestination, ownExamPackages } from '../ui/controlScreens'
 import { preparationPresentation } from '../ui/entryPresentation'
 import { examHeading } from '../ui/examPresentation'
@@ -33,22 +34,24 @@ export function PrepareOfflineScreen() {
 function Preparation({ examId }: { examId: string }) {
   const { controller } = useAuth(), offline = useOffline(), router = useRouter(), runtime = offline.runtime
   const [running, setRunning] = useState(false), [attempted, setAttempted] = useState(false)
+  const [updateError, setUpdateError] = useState<string | null>(null)
   const [verification, setVerification] = useState<{ runtime: typeof runtime; candidate: PackageRecord; record: PackageRecord | null; error: string | null } | null>(null)
   const work = useRef(false)
-  const load = useCallback(async () => {
+  const api = useCallback(() => new OfflineApi(controller!, runtime?.digest ?? (() => { throw new Error('No se pudo abrir tu copia local.') })), [controller, runtime])
+  const load = useCallback(async (signal: AbortSignal) => {
     if (!controller || !/^\d+$/.test(examId)) return null
     try {
-      const context = await new OfflineApi(controller, () => { throw new Error('La consulta de contexto no utiliza fotografías.') }).context(examId)
-      return String(context.exam.id) === examId ? context : null
-    } catch (error) {
-      if (error instanceof ApiError && (error.status === 403 || error.status === 404)) return null
-      throw error
+      return await currentDistribution(api(), runtime?.repo ?? null, examId, signal)
+    } finally {
+      if (runtime) await offline.refresh()
     }
-  }, [controller, examId])
+  }, [controller, examId, api, runtime, offline.refresh])
   const query = useRemoteQuery(load), context = query.data
-  const authorized = !!context?.own_list_id && !context.stale && !context.unavailable_reason
+  useRefreshOnFocus(query.reload)
+  const authorized = !!context && distributionReady(context)
   const packages = context && authorized ? ownExamPackages(context, offline.packages, !!runtime) : []
-  const latest = packages[0]
+  const examCopies = runtime ? offline.packages.filter((copy) => copy.examId === examId) : []
+  const latest = packages[0] ?? examCopies[0]
   const candidate = packages.find((pkg) => pkg.active && pkg.state === 'PREPARADO')
   useFocusEffect(useCallback(() => {
     if (!runtime || !candidate || running) return
@@ -78,18 +81,35 @@ function Preparation({ examId }: { examId: string }) {
   const count = context?.lists.find((list) => list.list_id === context.own_list_id)?.student_count ??
     checked?.manifest.students.length
   const downloading = running || (offline.busy && latest?.state === 'DESCARGANDO')
-  const state = preparationPresentation({ authorized, unlocked: !!runtime, downloading,
+  const presentation = preparationPresentation({ authorized, unlocked: !!runtime, downloading,
     checked, latest: verified?.state === 'VENCIDO' ? verified : latest, failed: attempted })
+  const needsUpdate = !!context?.stale || (!candidate && latest?.state === 'DESACTUALIZADO')
+  const state = !downloading && context && !authorized
+    ? { label: context.stale ? 'Copia desactualizada' : context.unavailable_reason ? 'Lista no disponible' : 'Lista pendiente de preparación',
+        message: copyPreparationReason(context), tone: 'warning' as const, ready: false }
+    : presentation
   const working = checking || downloading
   const binding = controller?.offlineBinding()
-  const canPrepare = !!(authorized && runtime && binding && sameBinding(binding, runtime.repo.binding))
+  const canPrepare = !!(context && !context.unavailable_reason && runtime && binding && sameBinding(binding, runtime.repo.binding))
   const start = async (resumeId?: string) => {
-    if (work.current || !canPrepare || offline.busy) return
+    if (work.current || !canPrepare || offline.busy || !runtime) return
     work.current = true
-    setRunning(true); setAttempted(false); setVerification(null)
+    setRunning(true); setAttempted(false); setVerification(null); setUpdateError(null)
     try {
-      await offline.download(examId, resumeId)
-    } finally { work.current = false; setAttempted(true); setRunning(false) }
+      const current = await prepareCopyContext(api(), runtime.repo, examId, () => runtime.check())
+      await offline.refresh()
+      runtime.check()
+      const previous = resumeId ? await runtime.repo.package(resumeId) : null
+      // An old assignment needs a fresh download, never a resume of its previous contents.
+      const resume = resumableCopyId(previous, current)
+      await offline.download(examId, resume)
+    } catch (error) {
+      setUpdateError(error instanceof Error ? error.message : 'No se pudo actualizar tu copia. Reintenta con internet.')
+    } finally {
+      await offline.refresh().catch(() => {})
+      work.current = false; setAttempted(true); setRunning(false)
+      query.refresh()
+    }
   }
   const incomplete = latest?.state === 'INCOMPLETA' ? latest : undefined
   const heading = context ? examHeading(context.exam) : null
@@ -112,10 +132,10 @@ function Preparation({ examId }: { examId: string }) {
         <AppText variant="subtitle" accessibilityLiveRegion="polite" style={s.center}>{checking ? 'Comprobando lista' : state.label}</AppText>
         {!checking && <AppText style={[s.center, s.muted]}>{state.message}</AppText>}
       </Card>
-      {(checkError || (authorized && runtime && offline.error)) && <Notice tone="error" message={checkError ?? offline.error!} />}
+      {(updateError || checkError || (authorized && runtime && offline.error)) && <Notice tone="error" message={updateError ?? checkError ?? offline.error!} />}
       {state.ready && checked && latest?.state === 'INCOMPLETA' && latest.id !== checked.id &&
         <Notice message="La descarga nueva quedó incompleta. Tu copia anterior sigue disponible." />}
-      {authorized && (!runtime ? <OfflineAccessStatus />
+      {context && !context.unavailable_reason && (!runtime ? <OfflineAccessStatus />
         : state.ready && checked ? <>
           <ActionButton label="Ir al control de ingreso" icon={<ExamIcon name="qr" color={theme.colors.onPrimary} />}
             disabled={offline.busy} onPress={() => router.push(listDestination(checked.id))} />
@@ -124,13 +144,14 @@ function Preparation({ examId }: { examId: string }) {
           {incomplete && <TextAction label="Reanudar descarga anterior"
             disabled={!canPrepare || offline.busy} onPress={() => { void start(incomplete.id) }} />}
         </> : <>
-          <ActionButton label={incomplete ? 'Reanudar descarga anterior' : attempted ? 'Reintentar preparación' : 'Preparar lista'}
+          <ActionButton label={needsUpdate ? 'Actualizar copia' : incomplete ? 'Reanudar descarga anterior' :
+            !context.own_list_id && !context.can_prepare ? 'Comprobar mi lista' : attempted ? 'Reintentar preparación' : 'Preparar lista'}
             busy={running} disabled={checking || !canPrepare || offline.busy}
             onPress={() => { void start(incomplete?.id) }} />
           {incomplete && <TextAction label="Preparar una copia nueva"
             disabled={working || !canPrepare || offline.busy} onPress={() => { void start() }} />}
         </>)}
-      {authorized && !!runtime && !canPrepare && !state.ready && <Notice message="Valida tu sesión con conexión para preparar la lista." />}
+      {context && !!runtime && !canPrepare && !state.ready && <Notice message="Valida tu sesión con conexión para preparar la lista." />}
     </>}
   </Screen>
 }

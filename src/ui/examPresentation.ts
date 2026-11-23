@@ -112,10 +112,10 @@ export function relevantControl(page: ExamPage | null, assignments: readonly Col
     relation: 'Colaborador', status: null }
 }
 interface PresentationQuery<T> { data: T | null; loading: boolean; error: string | null }
-export function homeOverview(exams: PresentationQuery<ExamPage>, assignments: PresentationQuery<readonly Collaboration[]>) {
+export function homeOverview(exams: PresentationQuery<ExamPage>, assignments: PresentationQuery<readonly Collaboration[]>, teaching = true) {
   const loading = exams.loading || assignments.loading, error = exams.error ?? assignments.error
   const control = !loading ? relevantControl(exams.data, assignments.data) : null
-  const empty = !loading && !error && exams.data?.total === 0 && assignments.data?.length === 0
+  const empty = !loading && !error && (!teaching || exams.data?.total === 0) && assignments.data?.length === 0
   return { loading, error, control, empty, choose: !loading && !error && !control && !empty }
 }
 export function examExtraActions(examId: number, permission: DisciplinePermissions | null) {
@@ -126,7 +126,7 @@ export function detailPresentation(c: DistributionContext, packages: readonly Pa
   const access = distributionAccess(c, unlocked), own = ownExamPackages(c, packages, unlocked)
   const local = own.find((p) => p.active && p.state === 'PREPARADO')
   return {
-    access, local, latest: own[0],
+    access, local, latest: own[0] ?? packages.find((copy) => copy.examId === String(c.exam.id) && copy.state === 'DESACTUALIZADO'),
     relation: c.can_prepare ? 'Docente responsable' : 'Colaborador autorizado',
     count: access.ownList?.student_count ?? local?.manifest.students.length ?? null,
     control: !!local && access.download && !busy,

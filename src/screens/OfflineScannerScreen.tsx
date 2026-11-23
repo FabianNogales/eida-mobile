@@ -96,7 +96,7 @@ export function OfflineScannerScreen() {
   }, [session, view?.state.phase, focused, foreground, Camera, granted, cameraError])
 
   if (!packageId) return <Screen><Notice message="Abre el escáner desde una lista autorizada." />
-    <ActionButton label="Ver paquetes" onPress={() => router.replace('/offline')} /></Screen>
+    <ActionButton label="Listas descargadas" onPress={() => router.replace('/offline')} /></Screen>
   if (!runtime) return <Screen><OfflineAccessStatus loadingLabel="Abriendo tu lista" />
     <TextAction label="Buscar manualmente" onPress={() => router.dismissTo(listDestination(packageId, true))} /></Screen>
   if (!focused || !foreground || !view || view.runtime !== runtime || view.packageId !== packageId) {

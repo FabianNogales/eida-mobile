@@ -62,10 +62,10 @@ export class HttpClient {
       const raw = await response.text()
       let data: unknown
       try { data = raw ? JSON.parse(raw) : null } catch {
-        if (response.status < 200 || response.status >= 300) throw httpError(response.status, null)
+        if (response.status < 200 || response.status >= 300) throw httpError(response.status, null, `${options.method ?? 'GET'} ${path}`)
         throw protocolError()
       }
-      if (response.status < 200 || response.status >= 300) throw httpError(response.status, data)
+      if (response.status < 200 || response.status >= 300) throw httpError(response.status, data, `${options.method ?? 'GET'} ${path}`)
       return data
     } catch (error) {
       if (error instanceof ApiError) throw error

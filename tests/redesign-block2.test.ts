@@ -34,7 +34,7 @@ test('preparation exposes the real copy state and requires a checked active pack
   assert.equal(presentation.preparationPresentation({ ...input, checked: packageRecord('PREPARADO') }).ready, false)
   assert.equal(presentation.preparationPresentation({ ...input, checked: packageRecord('PREPARADO', true) }).label, 'Lista preparada')
   assert.equal(presentation.preparationPresentation({ ...input, checked: packageRecord('PREPARADO', true), authorized: false }).ready, false)
-  assert.equal(presentation.preparationPresentation({ ...input, unlocked: false }).label, 'Lista protegida')
+  assert.equal(presentation.preparationPresentation({ ...input, unlocked: false }).label, 'Lista por abrir')
 })
 
 test('official confirmation requires a matching valid receipt; duplicate, conflict and rejection keep distinct outcomes', () => {

@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { theme } from '../src/config/theme'
-import { connectionLabels, observeConnectivity, type ConnectionState } from '../src/features/connectivity/state'
+import { connectionLabels, connectionState, observeConnectivity, type ConnectionState } from '../src/features/connectivity/state'
 import { navigationAccess } from '../src/features/offline/navigationAccess'
 import { checkOfflineGrant, localGrantProfile, onlineGrant } from '../src/features/offline/vaultAccess'
 import { PackageDownloader } from '../src/features/offline/download'
@@ -134,7 +134,7 @@ test('leaving and reopening downloaded control keeps the same copy and only conf
 })
 
 test('header connectivity waits for network evidence and refreshes on foreground without using API status', async () => {
-  const states: ConnectionState[] = ['unknown']
+  const states: ConnectionState[] = ['checking']
   const queries: Array<(value: unknown) => void> = []
   const listeners: { network?: (value: unknown) => void; foreground?: () => void } = {}
   const stop = observeConnectivity({
@@ -142,30 +142,73 @@ test('header connectivity waits for network evidence and refreshes on foreground
     onChange(listener) { listeners.network = listener; return () => { delete listeners.network } },
     onForeground(listener) { listeners.foreground = listener; return () => { delete listeners.foreground } },
   }, (state) => states.push(state))
-  assert.notEqual(connectionLabels[states[0]!], 'En línea')
-  listeners.network?.(false)
+  assert.notEqual(connectionLabels[states[0]!], 'Internet disponible')
+  listeners.network?.({ isConnected: false, isInternetReachable: false })
   queries[0]?.(true) // A slower initial sample must not undo the latest event.
   await new Promise<void>((resolve) => setImmediate(resolve))
-  assert.deepEqual(states, ['unknown', 'offline'])
+  assert.deepEqual(states, ['checking', 'offline'])
   listeners.foreground?.()
   queries[1]?.(true)
   await new Promise<void>((resolve) => setImmediate(resolve))
   listeners.network?.(null)
-  listeners.network?.(false)
+  queries[2]?.(null)
+  await new Promise<void>((resolve) => setImmediate(resolve))
+  listeners.network?.({ isConnected: false, isInternetReachable: false })
   assert.deepEqual(states.map((state) => connectionLabels[state]),
-    ['Comprobando red', 'Sin conexión', 'En línea', 'Comprobando red', 'Sin conexión'])
+    ['Comprobando red', 'Sin conexión', 'Internet disponible', 'Comprobando red', 'Estado de red no disponible', 'Sin conexión'])
   listeners.foreground?.()
   stop()
-  queries[2]?.(true)
+  queries[3]?.(true)
   await new Promise<void>((resolve) => setImmediate(resolve))
   assert.equal(states.at(-1), 'offline')
   assert.deepEqual(listeners, {})
 })
 
-test('QR diagnostics and the raw QR panel are guarded in release routes and actions', () => {
-  assert.match(source('app/_layout.tsx'), /<Stack.Protected guard=\{__DEV__\}>\s*<Stack.Screen name="qr-diagnostics"/)
+test('physical network, validated internet and unavailable sensor remain distinct', () => {
+  assert.equal(connectionState({ isConnected: false, isInternetReachable: null }), 'offline')
+  assert.equal(connectionState({ isConnected: true, isInternetReachable: false }), 'unvalidated')
+  assert.equal(connectionState({ isConnected: true, isInternetReachable: null }), 'unvalidated')
+  assert.equal(connectionState({ isConnected: true, isInternetReachable: true }), 'online')
+  assert.equal(connectionState(false), 'unvalidated') // Old APK cannot distinguish physical disconnection.
+  assert.equal(connectionState(null), 'unknown')
+})
+
+test('a hung native read settles and cannot overwrite a later network event; cleanup runs once', async () => {
+  const states: ConnectionState[] = ['checking']
+  let complete!: (value: unknown) => void, event!: (value: unknown) => void
+  let removed = 0
+  const stop = observeConnectivity({
+    read: () => new Promise((resolve) => { complete = resolve }),
+    onChange(listener) { event = listener; return () => { removed++ } },
+    onForeground: () => () => { removed++ },
+  }, (state) => states.push(state), 1)
+  try {
+    await new Promise<void>((resolve) => setTimeout(resolve, 10))
+    assert.equal(states.at(-1), 'unknown')
+    complete(true)
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    assert.equal(states.at(-1), 'unknown')
+    event({ isConnected: true, isInternetReachable: true })
+    assert.equal(states.at(-1), 'online')
+  } finally { stop(); stop() }
+  assert.equal(removed, 2)
+})
+
+test('a missing native event bridge settles as unavailable rather than checking forever', () => {
+  const states: ConnectionState[] = []
+  const stop = observeConnectivity({
+    read: async () => null,
+    onChange: () => { throw new Error('Native event bridge unavailable') },
+    onForeground: () => () => {},
+  }, (state) => states.push(state))
+  assert.deepEqual(states, ['unknown'])
+  stop()
+})
+
+test('temporary QR diagnostics are absent and the raw QR panel remains development-only', () => {
+  assert.doesNotMatch(source('app/_layout.tsx'), /qr-diagnostics/)
   for (const name of ['LoginScreen', 'SessionScreen', 'ProfileScreen']) {
-    assert.match(source('screens/' + name + '.tsx'), /\{__DEV__ && <[^\n]+Diagnóstico QR v3/)
+    assert.doesNotMatch(source('screens/' + name + '.tsx'), /qr-diagnostics|Diagnóstico QR v3/)
   }
   assert.match(source('screens/OfflineListScreen.tsx'), /\{__DEV__ && !qrBlock && showExternal/)
 })

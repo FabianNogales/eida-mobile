@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { Alert, Pressable, StyleSheet, View } from 'react-native'
-import { Redirect, useRouter } from 'expo-router'
+import { Redirect } from 'expo-router'
 import { Screen } from '../components/Screen'
 import { ActionButton } from '../components/ActionButton'
 import { AppText } from '../components/AppText'
@@ -21,7 +21,6 @@ import { useOffline } from '../features/offline/OfflineProvider'
 export function LoginScreen() {
   const { session, controller } = useAuth()
   const { access } = useOffline()
-  const router = useRouter()
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [visible, setVisible] = useState(false)
@@ -66,7 +65,6 @@ export function LoginScreen() {
     {more && <View style={s.form}>
       <TextAction label="¿Problemas para ingresar?" onPress={() => Alert.alert('Ayuda para ingresar',
         'Utiliza tu cuenta institucional. Si tienes una contraseña inicial, cámbiala en EIDA Web. Si la cuenta está inactiva o no tienes una asignación vigente, consulta con la administración.')} />
-      {__DEV__ && <TextAction label="Diagnóstico QR v3 · desarrollo" onPress={() => router.push('/qr-diagnostics')} />}
     </View>}
     {session.logoutPending && <Card>
       <AppText variant="subtitle">Cierre pendiente de confirmación</AppText>

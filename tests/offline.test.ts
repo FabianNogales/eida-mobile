@@ -88,6 +88,22 @@ test('photo HTTP download checks exact byte count and digest', async () => {
   await assert.rejects(api.photo({ ...photo, size: 2 }), /fotografía/)
   await assert.rejects(api.photo({ ...photo, sha256: digest('wrong') }), /fotografía/)
 })
+
+test('unavailable photo keeps the previous copy and original pending entry', async (t) => {
+  const h = await harnessOffline(); t.after(() => h.db.closeAsync())
+  await new PackageDownloader(mockApi(manifest()), h.repo, clock, keys).run('42')
+  const event = await captureProvisional(h.repo, packageId, '101', 'MANUAL', sample, stableUuid, provider)
+  const refusal = httpError(409, { code: 'OFFLINE_PHOTO_UNAVAILABLE' })
+  const next = manifest({ package_id: 'aaaaaaaa-2345-4678-9abc-def012345678' })
+  next.students[0]!.photos[0] = { kind: 'profile', state: 'PRESENT', size: 1, mime: 'image/png',
+    sha256: digest(new Uint8Array([1])), revision: '1', path: `exams/42/offline/packages/${next.package_id}/photos/101/profile` }
+  await assert.rejects(new PackageDownloader({ ...mockApi(next), photo: async () => { throw refusal } }, h.repo, clock, keys).run('42'),
+    (error: unknown) => error instanceof ApiError && error.status === 409 && /fotografía/.test(error.message))
+  assert.equal((await h.repo.usable(packageId, sample)).active, true)
+  assert.equal((await h.repo.package(next.package_id)).state, 'INCOMPLETA')
+  assert.deepEqual(await h.repo.event('42', '101'), event)
+  assert.equal(await h.repo.pendingCount(), 1)
+})
 test('local search finds names with accents, SIS and CI; wildcard characters remain literal', async (t) => {
   const h = await harnessOffline(); t.after(() => h.db.closeAsync())
   const m = manifest(); await new PackageDownloader(mockApi(m), h.repo, clock, keys).run('42')
@@ -268,5 +284,7 @@ test('binary HTTP uses same Bearer origin, rejects redirects, and frozen errors 
   assert.deepEqual(await client.request('exams/42/offline/package', { token: 'SYNTHETIC', responseType: 'bytes' }), bytes)
   const redirect = new HttpClient(base, async (url) => ({ status: 302, url, text: async () => '' }))
   await assert.rejects(redirect.request('exams/42/offline/package', { responseType: 'bytes' }), (e: unknown) => e instanceof ApiError && e.kind === 'configuration')
-  assert.match(httpError(409, { code: 'DISTRIBUTION_FROZEN' }).message, /DISTRIBUTION_FROZEN/)
+  const frozen = httpError(409, { code: 'DISTRIBUTION_FROZEN' })
+  assert.equal(frozen.code, 'DISTRIBUTION_FROZEN')
+  assert.match(frozen.message, /Actualizar copia/)
 })
